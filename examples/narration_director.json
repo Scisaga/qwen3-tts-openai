@@ -1,0 +1,39 @@
+{
+  "schema_version": 2,
+  "policy": {
+    "visual_sync": "independent",
+    "audio_start_ms": 0,
+    "paragraph_per_slide": 1,
+    "animation_window_ms": 1000,
+    "chapter_max_seconds": 240,
+    "performance_contract": "rhetorical-v1"
+  },
+  "pages": [
+    {
+      "page": 1,
+      "chapter": "chapter-01",
+      "role": "介绍本地配音",
+      "intent": "opening",
+      "direction": "用温暖、克制的语气开场。",
+      "rationale": "先说明目的，再介绍操作步骤。",
+      "target_seconds": 15,
+      "segments": [
+        {"text": "大家好，今天我们演示如何使用本地配音服务。", "rate": "-2%", "pitch": "+0st", "pause_after_ms": 180},
+        {"text": "先选择经过授权的参考音色，再输入已有的导演稿。", "rate": "+0%", "pitch": "+0.1st", "pause_after_ms": 120}
+      ]
+    },
+    {
+      "page": 2,
+      "chapter": "chapter-01",
+      "role": "解释语速与读法",
+      "intent": "explanation",
+      "direction": "用平静的语气讲解。",
+      "rationale": "用明确读法帮助听众理解术语。",
+      "target_seconds": 12,
+      "segments": [
+        {"text": "LMD 是本例中的缩写，AlSi10Mg 使用已经确认的中文读法。", "rate": "-4%", "pitch": "+0st", "pause_after_ms": 150},
+        {"text": "生成后可以对照原始音频和处理后的音频，再下载逐页文件。", "rate": "+2%", "pitch": "-0.1st", "pause_after_ms": 80}
+      ]
+    }
+  ]
+}

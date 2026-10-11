@@ -1,0 +1,18 @@
+# Separate LAN HTTPS proxy for the existing HTTP service; Linux host networking.
+services:
+  voice_https:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      HTTPS_PUBLIC_URL: "${HTTPS_PUBLIC_URL:?Set HTTPS_PUBLIC_URL to your HTTPS workbench address}"
+      HTTPS_UPSTREAM: "${HTTPS_UPSTREAM:-127.0.0.1:8000}"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./.local/https/data:/data
+      - ./.local/https/config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

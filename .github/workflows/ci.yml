@@ -1,0 +1,37 @@
+name: checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cpu-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public content for deployment identifiers
+        run: python3 scripts/check_public_content.py
+      - name: Build CPU test image with real audio tools
+        run: docker build --target test -t qwen3-tts-openai:test .
+      - name: Tests and lint
+        run: |
+          docker run --rm --network none qwen3-tts-openai:test
+          docker run --rm --network none qwen3-tts-openai:test ruff check .
+      - name: Compose validation with explicit GPU selection
+        run: |
+          cp .env.example .env
+          GPU_DEVICE=GPU-test-placeholder docker compose config --quiet
+  runtime-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          push: false
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<speak version="1.0" xml:lang="zh-CN" xmlns="http://www.w3.org/2001/10/synthesis">
+  <voice name="reference-speaker">
+    <bookmark mark="page-01"/>
+    <p><prosody rate="-5%" pitch="+0.1st" volume="-1dB">这是一段本地配音测试。<sub alias="铝硅十镁">AlSi10Mg</sub>使用已经确认的读法。</prosody></p>
+    <break time="180ms"/>
+    <bookmark mark="page-02"/>
+    <s><prosody rate="+0%" pitch="+0st">第二页保持同一音色。</prosody></s>
+    <break time="120ms"/>
+  </voice>
+</speak>

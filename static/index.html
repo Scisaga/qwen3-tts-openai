@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f7f5">
+  <title>Qwen3-TTS · 配音工作台</title>
+  <link rel="icon" href="/static/favicon.svg?v=20261012-4">
+  <link rel="stylesheet" href="/static/app.css?v=20261012-voice-tabs-2">
+  <script src="/static/app.js?v=20261012-voice-tabs-2" defer></script>
+  <script src="/static/quick-clone.js?v=20261012-voice-tabs-2" defer></script>
+</head>
+<body>
+  <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="i-studio" viewBox="0 0 24 24"><path d="M4 9v6m4-10v14m4-17v20m4-17v14m4-10v6"/></symbol>
+    <symbol id="i-voice" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11v1a7 7 0 0 0 14 0v-1m-7 8v3m-4 0h8"/></symbol>
+    <symbol id="i-jobs" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zm9 0v5h4M9 12h7m-7 4h5"/></symbol>
+    <symbol id="i-runtime" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 1v5m6-5v5M9 18v5m6-5v5M1 9h5m-5 6h5m12-6h5m-5 6h5m-13-5h4v4h-4z"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6h7l2 3h9v11H3z"/></symbol>
+  </defs></svg>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Qwen3-TTS 配音工作台">
+      <img class="brand-icon" src="/static/favicon.svg?v=20261012-4" width="32" height="32" alt="文字转语音">
+      <span class="brand-copy"><strong>Qwen3-TTS</strong><small>本地配音工作台</small></span>
+    </a>
+    <div class="nav-caption">工作空间</div>
+    <nav aria-label="主导航">
+      <button class="nav active" data-view="studio" aria-current="page"><svg class="icon"><use href="#i-studio"/></svg><span>配音工作台</span></button>
+      <button class="nav" data-view="voices"><svg class="icon"><use href="#i-voice"/></svg><span>音色管理</span><span class="nav-count" id="voice-count">0</span></button>
+      <button class="nav" data-view="jobs"><svg class="icon"><use href="#i-jobs"/></svg><span>任务与产物</span></button>
+      <button class="nav" data-view="runtime"><svg class="icon"><use href="#i-runtime"/></svg><span>运行状态</span><span id="runtime-dot" class="status-dot" aria-label="读取模型状态"></span></button>
+    </nav>
+    <div class="sidebar-note"><svg class="icon"><use href="#i-studio"/></svg><span>从文字到声音<small>参考音色 · 精细控制 · 本地合成</small></span></div>
+    <div class="sidebar-bottom">
+      <label class="token-label" id="token-field" hidden>API Token<input id="api-token" type="password" autocomplete="off" placeholder="服务启用鉴权时填写"></label>
+      <div class="sidebar-links"><span><i class="local-dot"></i> 自托管服务</span><a href="/docs" target="_blank" rel="noopener">API 文档 ↗</a></div>
+    </div>
+  </aside>
+  <main>
+    <header class="page-header">
+      <div><div class="eyebrow">QWEN · VOICE STUDIO</div><h1 id="view-title">配音工作台</h1><p id="view-description">让每一段文字，都有合适的声音。</p></div>
+      <div class="header-status"><span id="connection" class="badge">连接中</span><span class="header-caption">单机 · 串行生成</span></div>
+    </header>
+    <div class="status-strip" aria-live="polite">
+      <div class="status-item"><span class="status-label">模型</span><span id="model-state">读取状态</span></div>
+      <div class="status-item"><span class="status-label">计算设备</span><span id="device-state">—</span></div>
+      <div class="status-item"><span class="status-label">推理精度</span><span id="dtype-state">—</span></div>
+      <div class="status-item"><span class="status-label">音频处理</span><span id="tool-state">—</span></div>
+    </div>
+    <div class="model-alert" id="model-alert" hidden role="status"><span class="alert-symbol">!</span><div><strong id="model-alert-title"></strong><p id="model-alert-description"></p></div><button class="link-button" id="inspect-error">查看诊断 <span aria-hidden="true">↗</span></button></div>
+    <div id="message" role="status" hidden></div>
+    <section id="view-studio" class="view">
+      <div class="workflow-bar"><span class="workflow-step current"><i>1</i>音色与文稿</span><svg class="icon"><use href="#i-arrow"/></svg><span class="workflow-step" id="step-plan"><i>2</i>自动预检</span><svg class="icon"><use href="#i-arrow"/></svg><span class="workflow-step" id="step-audio"><i>3</i>试听与下载</span><span class="workflow-note">点击生成，即可开始</span></div>
+      <div class="studio-grid">
+        <article class="card editor-card">
+          <div class="card-header"><div class="section-heading"><svg class="icon"><use href="#i-jobs"/></svg><h2>配音文稿</h2></div><div class="editor-actions"><button class="secondary" id="compile-button" title="单独检查文稿与执行计划"><svg class="icon"><use href="#i-check"/></svg>预检</button><button id="submit-button"><svg class="icon"><use href="#i-play"/></svg><span id="submit-label">生成配音</span></button></div></div>
+          <div class="card-body editor-body">
+            <div class="voice-picker"><label>参考音色<select id="voice-select"><option value="">请选择本地音色</option></select></label><button class="secondary" id="preview-voice" title="试听所选音色的参考录音"><svg class="icon"><use href="#i-play"/></svg>试听</button><button class="link-button" id="go-upload"><svg class="icon"><use href="#i-upload"/></svg>添加</button><button class="link-button" id="go-quick-clone" hidden><svg class="icon"><use href="#i-voice"/></svg>快速复刻</button></div>
+            <audio id="selected-voice-preview" class="selected-voice-preview" controls aria-label="所选音色的参考录音" hidden></audio>
+            <div class="tabs" role="tablist" aria-label="文稿格式"><button class="tab active" id="tab-text" role="tab" aria-selected="true" aria-controls="mode-text" data-mode="text">文本配音</button><button class="tab" id="tab-director" role="tab" aria-selected="false" aria-controls="mode-director" data-mode="director" tabindex="-1">导演稿</button><button class="tab" id="tab-ssml" role="tab" aria-selected="false" aria-controls="mode-ssml" data-mode="ssml" tabindex="-1">SSML</button></div>
+            <div class="mode" id="mode-director" role="tabpanel" aria-labelledby="tab-director" hidden>
+              <div class="source-editor"><div class="editor-toolbar"><span><i class="file-dot"></i>导演稿 <small>JSON</small></span><div class="toolbar-actions"><label class="file-label">导入文件<input id="director-file" type="file" accept=".json,application/json"></label><button class="link-button" id="load-example">载入示例</button></div></div><textarea id="director-editor" aria-label="导演稿 JSON" spellcheck="false" placeholder="此页签用于 narration_director.json，可导入 JSON 文件或载入示例。&#10;&#10;普通文章请使用「文本配音」，也可在此粘贴后点击预检自动识别。"></textarea><div class="editor-footer"><span id="source-meta">等待输入文稿</span><span>UTF-8</span></div></div>
+              <details class="disclosure" id="profile-disclosure"><summary>音色配置与发音规则<span class="muted">可选</span></summary><div class="disclosure-body"><div class="file-row"><span class="hint">全局语速、音高和已确认的术语读法</span><label class="file-label">导入配置<input id="profile-file" type="file" accept=".json,application/json"></label></div><textarea id="profile-editor" class="short" aria-label="音色配置 JSON" spellcheck="false" placeholder="粘贴 voice_profile.json">{}</textarea></div></details>
+            </div>
+            <div class="mode" id="mode-ssml" role="tabpanel" aria-labelledby="tab-ssml" hidden><div class="source-editor"><div class="editor-toolbar"><span><i class="file-dot"></i>SSML <small>XML</small></span><button class="link-button" id="load-ssml">载入示例</button></div><textarea id="ssml-editor" aria-label="SSML" spellcheck="false" placeholder="粘贴 speak XML"></textarea></div><details class="disclosure"><summary>命名音色映射<span class="muted">JSON</span></summary><div class="disclosure-body"><p class="hint">将 SSML 中的音色名称对应到已注册的本地音色。</p><textarea id="voice-mapping" class="tiny" aria-label="音色名称映射 JSON" spellcheck="false" placeholder='{"reference-speaker":"voice_..."}'>{}</textarea></div></details></div>
+            <div class="mode" id="mode-text" role="tabpanel" aria-labelledby="tab-text"><div class="text-copy"><label>配音正文<textarea id="text-editor" class="text-editor" placeholder="在这里粘贴要朗读的文字…&#10;&#10;短句或整篇文章均可，点击上方「生成配音」即可开始。"></textarea></label><div class="text-meta"><span id="text-meta">等待输入正文</span><span>原文与换行完整保留</span></div></div><div class="text-controls"><span>语速</span><div class="speed-control"><button type="button" data-speed-step="-0.05" aria-label="减慢语速">−</button><input id="text-speed" type="number" aria-label="语速倍率" min="0.25" max="4" step="0.05" value="1"><span>×</span><button type="button" data-speed-step="0.05" aria-label="加快语速">＋</button></div><span class="hint">默认自然语速</span></div></div>
+            <details class="disclosure advanced-options"><summary>更多设置<span class="muted" id="settings-summary">默认设置</span></summary><div class="disclosure-body"><div class="row"><label id="compatibility-field">兼容规则<select id="compatibility"><option value="build-narrated-presentation">原技能规则（±0.1st）</option><option value="generic">通用控制范围（±12st）</option></select></label><label>随机种子<input id="seed" type="number" min="0" value="0"></label></div><label id="expression-field">表达要求<input id="text-instructions" placeholder="例如：温暖、克制的讲解；按模型能力预检"></label><label class="check"><input id="allow-experimental" type="checkbox">允许尚未验收的组合表达实验</label></div></details>
+          </div>
+        </article>
+        <article class="card inspector-card">
+          <div class="inspector-tabs" role="tablist" aria-label="计划与任务"><button class="inspector-tab active" id="tab-plan" role="tab" aria-selected="true" aria-controls="panel-plan" data-panel="plan">执行计划<span class="tab-count" id="plan-count">—</span></button><button class="inspector-tab" id="tab-task" role="tab" aria-selected="false" aria-controls="panel-task" data-panel="task" tabindex="-1">当前任务<span class="task-indicator" id="task-indicator" hidden></span></button></div>
+          <section id="panel-plan" class="inspector-panel" role="tabpanel" aria-labelledby="tab-plan">
+            <div class="panel-heading"><div><h2>文稿预检</h2><p>确认每页内容、控制参数与降级记录</p></div><span class="quiet-tag">无需 GPU</span></div>
+            <div id="plan-empty" class="empty-state"><svg class="icon empty-icon"><use href="#i-jobs"/></svg><strong>准备好文字，就可以开始</strong><p>点击「生成配音」会自动检查文稿。<br>也可以先预检，查看分段和控制参数。</p></div>
+            <p id="plan-summary" class="plan-summary" hidden>等待预检</p><div id="plan-overview" class="plan-overview" hidden></div><div id="plan-issues"></div><div id="plan-review" hidden><label class="check degradation-check"><input id="allow-degraded" type="checkbox"><span>已查看问题，允许执行计划中列出的降级</span></label></div><div id="plan-units" class="unit-list"></div>
+            <div class="panel-footnote">预检保留原文；实际读法与数值控制分别列出。</div>
+          </section>
+          <section id="panel-task" class="inspector-panel" role="tabpanel" aria-labelledby="tab-task" hidden>
+            <div class="panel-heading"><div><h2>生成与试听</h2><p>任务进度、音频对照与产物下载</p></div><button id="refresh-button" class="icon-button" aria-label="刷新任务状态" title="刷新任务状态"><svg class="icon"><use href="#i-refresh"/></svg></button></div>
+            <div id="job-empty" class="empty-state"><svg class="icon empty-icon"><use href="#i-studio"/></svg><strong>等待第一段声音</strong><p>生成完成后，在这里试听并下载。</p></div>
+            <div id="job-content" hidden><div class="job-topline"><span id="job-status" class="badge"></span><span id="job-kind" class="muted"></span><span id="job-percentage"></span></div><div id="active-job" class="job-identity">尚未提交任务</div><progress id="job-progress" value="0" max="1" aria-label="任务进度"></progress><div class="job-meta"><span id="job-time"></span><button id="cancel-button" class="link-button danger-link" hidden>取消任务</button></div><div id="job-error" class="job-error" hidden></div><div id="job-result-note" class="hint" hidden></div></div>
+            <div id="artifacts"></div>
+          </section>
+        </article>
+      </div>
+    </section>
+    <section id="view-voices" class="view" hidden><div class="grid voice-grid">
+      <article class="card voice-library"><div class="card-header"><div class="section-heading"><svg class="icon"><use href="#i-voice"/></svg><h2>音色库</h2></div><button id="refresh-voices" class="link-button">刷新</button></div><div id="voice-list" class="card-body">读取中</div></article>
+      <div class="voice-additions">
+      <div class="voice-entry-tabs" role="tablist" aria-label="添加音色方式">
+        <button type="button" class="voice-entry-tab" id="voice-tab-quick" role="tab" data-voice-entry="quick" aria-controls="quick-clone-card" aria-selected="false" tabindex="-1" hidden><svg class="icon"><use href="#i-voice"/></svg>快速复刻</button>
+        <button type="button" class="voice-entry-tab active" id="voice-tab-upload" role="tab" data-voice-entry="upload" aria-controls="voice-upload-card" aria-selected="true"><svg class="icon"><use href="#i-upload"/></svg>添加音色</button>
+      </div>
+      <article class="card quick-clone" id="quick-clone-card" role="tabpanel" aria-labelledby="voice-tab-quick" hidden>
+        <div class="card-header"><span class="muted">录音或上传短录音</span><span class="badge" id="quick-asr-state">检查中</span></div>
+        <form class="card-body" id="quick-clone-form">
+          <p class="hint" id="quick-recording-hint">在安静环境自然说一段话，建议 10–20 秒，最长 30 秒。</p>
+          <div class="quick-context-note" id="quick-context-note" hidden><p id="quick-context-message"></p><div class="quick-context-actions" id="quick-secure-actions" hidden><a id="quick-secure-link">打开录音页面</a><a href="/static/local-ca.crt" id="quick-ca-link" download="qwen3-tts-local-ca.crt" hidden>下载内网证书</a></div><p id="quick-ca-hint" class="hint" hidden>首次使用请将证书导入电脑的受信任根证书，再打开录音页面并允许麦克风。</p></div>
+          <label class="check"><input type="checkbox" id="quick-manual">手动填写文字<span class="hint">ASR 繁忙时可跳过等待</span></label>
+          <div class="quick-recording-controls"><button type="button" id="quick-record"><svg class="icon"><use href="#i-voice"/></svg><span id="quick-record-label">开始录音</span></button><button type="button" class="secondary" id="quick-stop" hidden>停止录音</button><span class="quick-timer" id="quick-timer" aria-label="录音时长">00:00</span><label class="file-label quick-file-label" id="quick-file-label">上传短录音<input type="file" id="quick-file" accept=".wav,.webm,.m4a,.mp4,.mp3,.ogg,.flac,audio/*" aria-label="上传快速复刻录音"></label></div>
+          <audio id="quick-sample-preview" controls aria-label="快速复刻参考录音" hidden></audio>
+          <div class="quick-status" id="quick-status" role="status" aria-live="polite">录音结束后会自动识别文字，也可以上传已有录音。</div>
+          <div class="quick-draft-actions"><button type="button" class="link-button" id="quick-retry" disabled>重新识别文字</button><button type="button" class="link-button" id="quick-reset" disabled>清除录音</button></div>
+          <label>音色名称<input id="quick-name" required maxlength="100" placeholder="例如：我的讲解音色"></label>
+          <label>录音对应文字<textarea id="quick-ref-text" class="short" required maxlength="4000" placeholder="识别结果会自动填入。请回听并确认与录音一致，也可以手动填写。"></textarea></label>
+          <p class="hint">确认文字后生成音色，保存后可以用新的句子试听。</p>
+          <button type="submit" id="quick-create" disabled>生成音色</button>
+          <div id="quick-result" class="quick-result" hidden><p id="quick-result-status" role="status" aria-live="polite"></p><div class="quick-result-actions"><button type="button" class="secondary" id="quick-audition" disabled><svg class="icon"><use href="#i-play"/></svg>用新句子试听</button><button type="button" class="link-button" id="quick-use" disabled>使用这个音色</button><button type="button" class="link-button" id="quick-prepare" hidden>重新提取</button></div><audio id="quick-result-audio" controls aria-label="快速复刻新句子试听" hidden></audio></div>
+        </form>
+      </article>
+      <article class="card voice-upload" id="voice-upload-card" role="tabpanel" aria-labelledby="voice-tab-upload"><div class="card-header"><span class="muted">上传已有的参考录音</span><span class="muted">WAV · 1–30 秒</span></div><form id="voice-form" class="card-body">
+        <label class="drop"><svg class="icon"><use href="#i-upload"/></svg><span class="upload-copy"><strong id="sample-name">选择参考录音</strong><small>清晰的 WAV 文件 · 保留原始录音</small></span><span class="upload-choice">选择 WAV</span><input id="sample-file" name="file" type="file" accept=".wav,audio/wav" required aria-label="选择参考录音 WAV"></label>
+        <audio id="sample-preview" controls hidden></audio><label>音色名称<input id="voice-name" name="name" required maxlength="100" placeholder="选择录音后自动填写，可修改"></label><label>录音对应文字<span class="optional-label">可选</span><textarea id="ref-text" name="ref_text" class="short" maxlength="4000" placeholder="填写录音中实际说出的文字，使用完整参考。留空则仅提取说话人特征。"></textarea></label><details class="disclosure upload-options"><summary>参考方式<span class="muted">默认自动选择</span></summary><div class="disclosure-body"><label>参考模式<select id="reference-mode" name="mode"><option value="auto">自动：按对应文字选择</option><option value="icl">完整参考（需要对应文字）</option><option value="x_vector_only">仅说话人特征（无需文字）</option></select></label><p class="hint">仅说话人特征不含文字上下文，克隆效果请试听确认。</p></div></details><button type="submit">添加音色</button>
+      </form></article></div>
+    </div><dialog class="edit-card" id="edit-voice-card"><div class="card-header"><h2>编辑参考文字</h2><button id="close-edit" class="link-button">关闭</button></div><div class="card-body"><p id="edit-voice-name"></p><textarea id="edit-ref-text" class="short" maxlength="4000" aria-label="编辑参考文字"></textarea><select id="edit-reference-mode" aria-label="参考模式"><option value="icl">完整参考</option><option value="x_vector_only">仅说话人特征</option></select><div class="actions"><button id="save-ref-text">保存更改</button></div></div></dialog></section>
+    <section id="view-jobs" class="view" hidden><article class="card"><div class="card-header"><div class="section-heading"><svg class="icon"><use href="#i-folder"/></svg><h2>任务记录</h2><span id="jobs-count" class="quiet-tag">—</span></div><button class="link-button" id="refresh-jobs">刷新</button></div><div class="table-scroll"><table><thead><tr><th>任务</th><th>类型</th><th>状态</th><th>进度</th><th>提交时间</th><th></th></tr></thead><tbody id="job-list"></tbody></table></div></article></section>
+    <section id="view-runtime" class="view" hidden><div id="runtime-overview" class="runtime-grid"></div><div class="grid runtime-panels"><article class="card"><div class="card-header"><h2>模型与控制能力</h2><span class="muted">按当前后端报告</span></div><div id="capabilities" class="card-body"></div></article><article class="card"><div class="card-header"><h2>设备与诊断</h2></div><div class="card-body"><div id="device-detail"></div><details class="disclosure" id="diagnostic-disclosure"><summary>完整运行信息<span class="muted">JSON</span></summary><pre id="runtime-detail"></pre></details></div></article></div></section>
+    <footer><span>原文与读法分别保留</span><i>·</i><span>停顿为额外静音</span><i>·</i><span>最终听感请试听确认</span></footer>
+  </main>
+</body>
+</html>

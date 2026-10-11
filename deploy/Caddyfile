@@ -1,0 +1,10 @@
+{
+    admin off
+    auto_https disable_redirects
+    skip_install_trust
+}
+
+{$HTTPS_PUBLIC_URL} {
+    tls internal
+    reverse_proxy {$HTTPS_UPSTREAM}
+}

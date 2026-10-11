@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "provider": "azure-speech",
+  "voice": "zh-CN-XiaochenNeural",
+  "style": null,
+  "rate": "-5%",
+  "pitch": "+0st",
+  "page_break_ms": 120,
+  "pronunciations": {
+    "LMD": {"say_as": "characters"},
+    "AlSi10Mg": {"alias": "铝硅十镁"}
+  },
+  "audition": {"text": "这是用于对照音色和术语读法的试听文案。"}
+}

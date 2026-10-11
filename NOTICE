@@ -1,0 +1,20 @@
+qwen3-tts-openai
+
+New implementation for local TTS, 2026.
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Engineering organization and UI color/spacing conventions were researched from
+Scisaga/qwen3-asr-openai, commit 11641f85c459c7e684cbea37d979db017875a111.
+Its actual LICENSE is Apache-2.0. No ASR inference/text-normalization code,
+reference recordings or logo assets are included in this project.
+
+Narration input compatibility is based on the actual protocol in
+Scisaga/skills/build-narrated-presentation,
+commit f7660d9f05f1ec5ea82aa4a17994ee1378dc1827.
+Examples contain independently written public demonstration text.
+
+The optional qwen-tts dependency is developed by the Alibaba Qwen team,
+Copyright 2026 The Alibaba Qwen team, SPDX-License-Identifier: Apache-2.0.
+Official model weights have their own model-card licensing terms.
+FFmpeg and Rubber Band are external audio tools distributed by their respective
+projects; their licenses and source are provided by the OS package distributions.

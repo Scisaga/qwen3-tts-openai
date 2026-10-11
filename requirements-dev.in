@@ -1,0 +1,5 @@
+-r requirements.in
+pytest==8.4.2
+pytest-asyncio==1.2.0
+ruff==0.13.3
+playwright==1.55.0

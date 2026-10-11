@@ -1,0 +1,11 @@
+-r requirements.in
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.7.1+cu126
+torchaudio==2.7.1+cu126
+qwen-tts==0.1.1
+transformers==4.57.3
+accelerate==1.12.0
+gradio==5.49.1
+librosa==0.11.0
+safetensors==0.6.2
+onnxruntime==1.23.2

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="title">
+  <title id="title">文字转语音</title>
+  <path d="M4 15h19v6H4zm0 28h19v6H4z" fill="#6998ef"/>
+  <path d="M4 29h23v6H4z" fill="#3676ee"/>
+  <path d="M26 32h3v15a5 5 0 0 0 10 0V17a5 5 0 0 1 10 0v20a5 5 0 0 0 10 0v-8" fill="none" stroke="#3676ee" stroke-width="6" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,33 @@
+services:
+  qwen3_tts:
+    build:
+      context: .
+      target: runtime
+      args:
+        DEBIAN_MIRROR: ${DEBIAN_MIRROR:-https://deb.debian.org}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    image: qwen3-tts-openai:local
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-12302}:${PORT:-12302}"
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: ${PORT:-12302}
+      GPU_DEVICE: "0"
+      GPU_HOST_DEVICE: "${GPU_DEVICE:?Set GPU_DEVICE to one host GPU}"
+      DEVICE_MAP: cuda:0
+      HF_HOME: /models
+      DATA_DIR: /data
+    volumes:
+      - ./models:/models
+      - ./data:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GPU_DEVICE:?Set GPU_DEVICE to one RTX 2080 Ti UUID or explicit host index in .env}"]
+              capabilities: [gpu]
+    stop_grace_period: 15s

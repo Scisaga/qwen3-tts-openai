@@ -1,0 +1,37 @@
+# Local configuration, credentials, and private notes.
+.env
+.env.*
+!.env.example
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+.local/
+private/
+static/local-ca.crt
+
+# Environments, caches, and generated reports.
+.venv*/
+.tools/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+playwright-report/
+test-results/
+*.log
+
+# Models, references, and persistent service data.
+models/
+data/
+*.db
+*.db-*
+*.sqlite*
+*.safetensors
+*.wav
+*.mp3

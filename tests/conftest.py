@@ -45,7 +45,7 @@ class ControlledBackend:
     def provenance(self):
         return {"model_source": "controlled-test-tone", "revision": "test-v1"}
 
-    def generate(self, unit, generation, language, target):
+    def generate(self, unit, generation, language, target, progress=None):
         self.calls.append({"unit": unit, "generation": generation, "language": language})
         self.generating.set()
         time.sleep(self.delay)

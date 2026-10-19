@@ -1,7 +1,8 @@
 """Official Python bindings. The combined experiment is isolated in its own method.
 
-Calls private token preparation helpers only for the explicitly experimental adapter;
-there are no global patches. Pin qwen-tts before changing this binding.
+The optional CUDA graph replaces the owned predictor's call within one generation;
+the combined experiment uses private token helpers. There are no global patches.
+Pin qwen-tts before changing this binding.
 """
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ import json
 import os
 import re
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 import numpy as np
@@ -55,6 +57,7 @@ class OfficialQwen:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.model = None
+        self.predictor_graph = None
         self.loaded_kind = None
         self.identity = {}
         self.hardware = {}
@@ -76,10 +79,9 @@ class OfficialQwen:
         flags = torch._C._cuda_getArchFlags()
         if not flags or "sm_75" not in flags:
             raise ServiceError("torch_architecture", "Installed PyTorch CUDA build does not include sm_75 kernels", 503)
-        self.hardware = {"gpu": props.name, "uuid": str(getattr(props, "uuid", "unavailable")), "compute_capability": [props.major, props.minor], "total_memory_bytes": props.total_memory, "torch": torch.__version__, "cuda_build": torch.version.cuda, "cuda_arch_flags": flags, "dependencies": {p: importlib.metadata.version(p) for p in ("qwen-tts", "transformers", "accelerate", "torchaudio", "numpy", "soundfile")}}
+        self.hardware = {"gpu": props.name, "uuid": str(getattr(props, "uuid", "unavailable")), "compute_capability": [props.major, props.minor], "total_memory_bytes": props.total_memory, "torch": torch.__version__, "torch_num_threads": torch.get_num_threads(), "torch_num_interop_threads": torch.get_num_interop_threads(), "cuda_build": torch.version.cuda, "cuda_arch_flags": flags, "dependencies": {p: importlib.metadata.version(p) for p in ("qwen-tts", "transformers", "accelerate", "torchaudio", "numpy", "soundfile")}}
 
     def snapshot(self, kind):
-        from huggingface_hub import snapshot_download
         model_id, revision = (self.settings.expression_model_id, self.settings.expression_model_revision) if kind == "expression" else (self.settings.model_id, self.settings.model_revision)
         key = (model_id, revision)
         if key not in self.snapshots:
@@ -90,6 +92,7 @@ class OfficialQwen:
                 hashes = {str(p.relative_to(path)): file_hash(p) for p in sorted(path.rglob("*")) if p.is_file()}
                 resolved = digest(hashes)
             else:
+                from huggingface_hub import snapshot_download
                 try:
                     path = Path(snapshot_download(model_id, revision=revision, cache_dir=self.settings.hf_home / "hub", local_files_only=self.settings.hf_hub_offline, ignore_patterns=["*.bin", "*.pt", "*.pth"]))
                 except Exception as error:
@@ -107,11 +110,16 @@ class OfficialQwen:
                 weights[str(file.relative_to(path))] = {"sha256": actual, "bytes": file.stat().st_size}
             if not weights:
                 raise ServiceError("model_cache_missing", "Snapshot contains no safetensors weights; pre-download the complete pinned model", 503)
-            self.snapshots[key] = (path, {"model_id": model_id, "requested_revision": revision, "resolved_revision": resolved, "weights": weights, "dtype": self.settings.dtype, "attention": self.settings.attn_implementation, "adapter_version": ADAPTER_VERSION})
+            graph_identity = {}
+            if self.settings.cuda_graph_enabled:
+                from backends.cuda_graph import CUDA_GRAPH_VERSION
+                graph_identity = {"cuda_graph": CUDA_GRAPH_VERSION}
+            self.snapshots[key] = (path, {"model_id": model_id, "requested_revision": revision, "resolved_revision": resolved, "weights": weights, "dtype": self.settings.dtype, "attention": self.settings.attn_implementation, "adapter_version": ADAPTER_VERSION, **graph_identity})
         return self.snapshots[key]
 
     def unload(self):
         import torch
+        self.predictor_graph = None
         self.model = None
         self.loaded_kind = None
         gc.collect()
@@ -132,12 +140,20 @@ class OfficialQwen:
         expected = "custom_voice" if kind == "expression" or self.settings.backend == "qwen-custom" else "base"
         if model.model.tts_model_type != expected:
             raise ServiceError("model_type_mismatch", f"Backend requires {expected}, checkpoint is {model.model.tts_model_type}", 503)
-        self.model, self.loaded_kind = model, kind
+        predictor_graph = None
+        if self.settings.cuda_graph_enabled:
+            from backends.cuda_graph import PredictorCudaGraph
+            from contracts import GenerationOptions
+            predictor_graph = PredictorCudaGraph(model.model.talker.code_predictor)
+            predictor_graph.configure(GenerationOptions().model_dump())
+        self.model, self.loaded_kind, self.predictor_graph = model, kind, predictor_graph
         self.identity = {**identity, "tts_model_type": model.model.tts_model_type, "tts_model_size": model.model.tts_model_size, "load_seconds": time.monotonic() - started, "loaded_memory_bytes": torch.cuda.memory_allocated(0)}
         return self.status()
 
     def status(self):
-        return {"identity": self.identity, "hardware": self.hardware, "loaded_kind": self.loaded_kind}
+        return {"identity": self.identity, "hardware": self.hardware, "loaded_kind": self.loaded_kind,
+                "inference_engine": "cuda-graph-predictor" if self.settings.cuda_graph_enabled else "official",
+                "cuda_graph": self.predictor_graph.status() if self.predictor_graph else None}
 
     def prompt_key(self, voice):
         _, identity = self.snapshot("base")
@@ -181,7 +197,7 @@ class OfficialQwen:
             item.ref_code = item.ref_code.detach().cpu()
         return items, doc
 
-    def generate(self, unit, generation, language, target):
+    def generate(self, unit, generation, language, target, progress=None):
         import torch
         params = {**generation}
         seed = params.pop("seed")
@@ -194,25 +210,35 @@ class OfficialQwen:
         if self.settings.backend == "qwen-custom" and "0b6" in self.model.model.tts_model_size and instruction:
             raise ServiceError("instruction_unsupported", "0.6B CustomVoice cannot execute instruct; use 1.7B or explicitly degrade before submission", 422)
         voice = unit["voice_snapshot"]
+        if progress:
+            progress({"stage": "preparing"})
         prompt_meta = None
         if self.settings.backend != "qwen-custom":
             prompt, prompt_meta = self.prepare(voice)
         if self.settings.backend == "qwen-combined-experimental":
             self.select("expression")
+        graph_capture_seconds = self.predictor_graph.configure(params) if self.predictor_graph else 0.0
+        graph_replays_before = self.predictor_graph.replay_count if self.predictor_graph else 0
         decoder_steps = [0]
+        last_progress = [0.0]
         def count_step(module, inputs, outputs):
             decoder_steps[0] += 1
-        # Observe the talker without replacing methods or globally patching the upstream package.
+            now = time.monotonic()
+            if progress and now - last_progress[0] >= .25:
+                progress({"stage": "synthesizing", "decoder_steps": decoder_steps[0]})
+                last_progress[0] = now
+        # Keep outer SDK talker/EOS diagnostics even when the predictor uses a graph.
         hook = self.model.model.talker.register_forward_hook(count_step)
         try:
-            if self.settings.backend == "qwen-custom":
-                wavs, sr = self.model.generate_custom_voice(text=unit["spoken_text"], language=language, speaker=voice["preset"], instruct=instruction, **params)
-            elif self.settings.backend == "qwen-base":
-                if instruction:
-                    raise ServiceError("instruction_unsupported", "Base cannot execute instructions; compile with explicit degradation", 422)
-                wavs, sr = self.model.generate_voice_clone(text=unit["spoken_text"], language=language, voice_clone_prompt=prompt, **params)
-            else:
-                wavs, sr = self.combined_generate(unit["spoken_text"], language, instruction, prompt, params)
+            with torch.inference_mode(), self.predictor_graph.activate() if self.predictor_graph else nullcontext():
+                if self.settings.backend == "qwen-custom":
+                    wavs, sr = self.model.generate_custom_voice(text=unit["spoken_text"], language=language, speaker=voice["preset"], instruct=instruction, **params)
+                elif self.settings.backend == "qwen-base":
+                    if instruction:
+                        raise ServiceError("instruction_unsupported", "Base cannot execute instructions; compile with explicit degradation", 422)
+                    wavs, sr = self.model.generate_voice_clone(text=unit["spoken_text"], language=language, voice_clone_prompt=prompt, **params)
+                else:
+                    wavs, sr = self.combined_generate(unit["spoken_text"], language, instruction, prompt, params)
         finally:
             hook.remove()
         audio = np.asarray(wavs[0], dtype=np.float32)
@@ -225,7 +251,8 @@ class OfficialQwen:
         sf.write(target, audio, sr, subtype="FLOAT")
         torch.cuda.synchronize(0)
         seconds = time.monotonic() - started
-        return {"duration_seconds": len(audio) / sr, "sample_rate": sr, "generation_seconds": seconds, "rtf": seconds / (len(audio) / sr), "decoder_steps": decoder_steps[0], "peak_memory_bytes": torch.cuda.max_memory_allocated(0), "prompt": prompt_meta, "identity": self.identity, "hardware": self.hardware, "checkpoint_generation_defaults": self.model.generate_defaults, "combined_route_validation": getattr(self, "combined_validation", None)}
+        return {"duration_seconds": len(audio) / sr, "sample_rate": sr, "generation_seconds": seconds, "rtf": seconds / (len(audio) / sr), "decoder_steps": decoder_steps[0], "peak_memory_bytes": torch.cuda.max_memory_allocated(0), "prompt": prompt_meta, "identity": self.identity, "hardware": self.hardware, "checkpoint_generation_defaults": self.model.generate_defaults, "combined_route_validation": getattr(self, "combined_validation", None),
+                "cuda_graph": {**self.predictor_graph.status(), "capture_seconds_this_call": graph_capture_seconds, "replays_this_call": self.predictor_graph.replay_count - graph_replays_before} if self.predictor_graph else None}
 
     def combined_generate(self, text, language, instruction, prompt, params):
         """Experimental CustomVoice talker + Base x-vector; no claim of weight compatibility.

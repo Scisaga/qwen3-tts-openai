@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#f4f7f5">
   <title>Qwen3-TTS · 配音工作台</title>
   <link rel="icon" href="/static/favicon.svg?v=20261012-4">
-  <link rel="stylesheet" href="/static/app.css?v=20261012-voice-tabs-2">
-  <script src="/static/app.js?v=20261012-voice-tabs-2" defer></script>
-  <script src="/static/quick-clone.js?v=20261012-voice-tabs-2" defer></script>
+  <link rel="stylesheet" href="/static/app.css?v=20261015-progress-1">
+  <script src="/static/app.js?v=20261015-progress-1" defer></script>
+  <script src="/static/quick-clone.js?v=20261015-progress-1" defer></script>
 </head>
 <body>
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -83,7 +83,7 @@
           <section id="panel-task" class="inspector-panel" role="tabpanel" aria-labelledby="tab-task" hidden>
             <div class="panel-heading"><div><h2>生成与试听</h2><p>任务进度、音频对照与产物下载</p></div><button id="refresh-button" class="icon-button" aria-label="刷新任务状态" title="刷新任务状态"><svg class="icon"><use href="#i-refresh"/></svg></button></div>
             <div id="job-empty" class="empty-state"><svg class="icon empty-icon"><use href="#i-studio"/></svg><strong>等待第一段声音</strong><p>生成完成后，在这里试听并下载。</p></div>
-            <div id="job-content" hidden><div class="job-topline"><span id="job-status" class="badge"></span><span id="job-kind" class="muted"></span><span id="job-percentage"></span></div><div id="active-job" class="job-identity">尚未提交任务</div><progress id="job-progress" value="0" max="1" aria-label="任务进度"></progress><div class="job-meta"><span id="job-time"></span><button id="cancel-button" class="link-button danger-link" hidden>取消任务</button></div><div id="job-error" class="job-error" hidden></div><div id="job-result-note" class="hint" hidden></div></div>
+            <div id="job-content" hidden><div class="job-topline"><span id="job-status" class="badge"></span><span id="job-kind" class="muted"></span><span id="job-percentage"></span></div><div id="active-job" class="job-identity">尚未提交任务</div><p id="job-progress-detail" class="job-progress-detail" hidden></p><progress id="job-progress" value="0" max="1" aria-label="任务进度" aria-describedby="job-progress-detail"></progress><div class="job-meta"><span id="job-time"></span><button id="cancel-button" class="link-button danger-link" hidden>取消任务</button></div><div id="job-error" class="job-error" hidden></div><div id="job-result-note" class="hint" hidden></div></div>
             <div id="artifacts"></div>
           </section>
         </article>

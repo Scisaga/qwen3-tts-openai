@@ -23,6 +23,7 @@ from contracts import NarrationRequest, SpeechRequest
 from director_compiler import compile_narration
 from errors import Cancelled, ServiceError
 from job_store import JobStore, TERMINAL
+from job_progress import NarrationProgress
 from reference_store import ReferenceStore
 from storage import Database, digest, file_hash, write_json
 from voice_store import VoiceStore
@@ -221,7 +222,7 @@ class SynthesisService:
 
     def public_job(self, job):
         artifacts = [{"artifact_id": ident, **{k: v for k, v in value.items() if k != "path"}, "url": f"/v1/jobs/{job['id']}/artifacts/{ident}"} for ident, value in (job.get("result") or {}).get("artifacts", {}).items()]
-        return {"job_id": job["id"], "kind": job["kind"], "status": job["state"], "progress": job["progress"], "created_at": job["created"], "updated_at": job["updated"], "cancel_requested": bool(job["cancel_requested"]), "error": job["error"], "warnings": (job["plan"] or {}).get("issues", []), "artifacts": artifacts, "status_url": f"/v1/jobs/{job['id']}"}
+        return {"job_id": job["id"], "kind": job["kind"], "status": job["state"], "progress": job["progress"], "progress_detail": job.get("progress_detail"), "created_at": job["created"], "updated_at": job["updated"], "cancel_requested": bool(job["cancel_requested"]), "error": job["error"], "warnings": (job["plan"] or {}).get("issues", []), "artifacts": artifacts, "status_url": f"/v1/jobs/{job['id']}"}
 
     def get_job(self, ident):
         return self.public_job(self.jobs.get(ident))
@@ -277,6 +278,7 @@ class SynthesisService:
             self.disk_check()
         try:
             check()
+            self.jobs.progress(ident, .01, {"stage": "preparing"})
             if job["kind"] == "model_preload":
                 self.backend.preload()
                 check()
@@ -348,8 +350,10 @@ class SynthesisService:
         write_json(output / "execution-plan.json", plan)
         units, processed_paths = [], {}
         generation = {**plan["generation"], "max_new_tokens": plan["generation"].get("max_new_tokens") or self.settings.max_new_tokens}
+        progress = NarrationProgress(self.jobs, ident, plan["units"])
         for index, unit in enumerate(plan["units"]):
             check()
+            progress.update(index, {"stage": "preparing"})
             # Model identity is resolved before cache lookup; a moving revision cannot reuse stale audio.
             self.backend.ensure_generation(unit["voice_snapshot"])
             provenance = self.backend.provenance()
@@ -361,7 +365,8 @@ class SynthesisService:
             if not raw_hit:
                 temp = raw.with_suffix(".tmp.wav")
                 try:
-                    stats = self.backend.generate(unit, generation, plan["language"], temp)
+                    stats = self.backend.generate(unit, generation, plan["language"], temp,
+                                                  progress=lambda event: progress.update(index, event))
                     check()
                     if temp.stat().st_size > self.settings.max_output_bytes or sf.info(temp).duration > self.settings.max_audio_seconds:
                         raise ServiceError("output_limit", "Generated audio exceeds output limits", 413)
@@ -371,6 +376,7 @@ class SynthesisService:
                 raw_doc = {"key": raw_key, "sha256": file_hash(raw), "stats": stats}
                 write_json(raw_meta, raw_doc)
             controls = {k: unit["postprocessing"][k] for k in ("tempo", "pitch_semitones", "gain_db")}
+            progress.update(index, {"stage": "postprocessing"})
             if sf.info(raw).duration / controls["tempo"] > self.settings.max_audio_seconds:
                 raise ServiceError("output_limit", "Slowed audio would exceed MAX_AUDIO_SECONDS", 413)
             post_key = digest({"raw_sha256": raw_doc["sha256"], "controls": controls, "sample_rate": self.settings.work_sample_rate, "channels": 1, "pipeline": PROCESSING_VERSION, "ffmpeg": self.audio.status.get("version"), "rubberband": self.audio.status.get("rubberband_cli")})
@@ -389,8 +395,9 @@ class SynthesisService:
             record = {"unit_id": unit["unit_id"], "page": unit["page"], "segment": unit["segment"], "voice_id": unit["voice_id"], "raw_key": raw_key, "processed_key": post_key, "raw_cache_hit": raw_hit, "processed_cache_hit": post_hit, "generation": raw_doc["stats"], "generation_measurement_source": "cache-entry" if raw_hit else "this-job", "generation_seconds_this_job": 0 if raw_hit else raw_doc["stats"]["generation_seconds"], "postprocessing_seconds": time.monotonic() - post_started, "controls": controls, "control_owners": unit["control_owners"], "model_instruction": unit["model_instruction"]}
             units.append(record)
             self._output_limit(output)
-            self.jobs.progress(ident, (index + 1) / (len(plan["units"]) + 2))
+            progress.update(index, {"stage": "unit_complete"})
         check()
+        self.jobs.progress(ident, .90, {"stage": "assembling"})
         # Explicit sub-frame silence prevents libmp3lame's tiny final-granule edge case.
         # Count it in both page and whole-narration PCM before encoding, never crop speech.
         frame_size = 576 if self.settings.work_sample_rate <= 24000 else 1152
@@ -425,6 +432,7 @@ class SynthesisService:
                 pass
         if not assembly_hit:
             timeline = self.audio.assemble(execution_events, processed_paths, output / "full.wav", check)
+            self.jobs.progress(ident, .93, {"stage": "encoding"})
             self.audio.encode(output / "full.wav", output / "full.mp3")
             check()
             timeline["mp3"] = self.audio.encoded_info(output / "full.mp3")
@@ -444,6 +452,7 @@ class SynthesisService:
                 target = page.get("target_seconds")
                 timeline["pages"].append({"page": p, "chapter": page.get("chapter"), "target_seconds": target, "target_delta_seconds": page_timeline["duration_seconds"] - target if target else None, "start_seconds": events[0]["start_seconds"] if events else 0, "end_seconds": events[-1]["end_seconds"] if events else 0, "duration_seconds": page_timeline["duration_seconds"], "mp3": encoded})
                 self._output_limit(output)
+                self.jobs.progress(ident, .95 + .035 * len(timeline["pages"]) / len(plan["pages"]), {"stage": "encoding"})
             write_json(output / "timeline.json", timeline)
             names = ["full.wav", "full.mp3", "timeline.json"] + [f"page-{p['page']:02d}.{ext}" for p in plan["pages"] for ext in ("wav", "mp3")]
             staging = Path(tempfile.mkdtemp(dir=assembly_dir.parent, prefix=".assembly-"))
@@ -459,6 +468,7 @@ class SynthesisService:
                     shutil.rmtree(staging)
         check()
         self._output_limit(output)
+        self.jobs.progress(ident, .99, {"stage": "saving"})
         manifest = {"schema_version": 1, "job_id": ident, "source_hash": plan["source_hash"], "text_hash": plan["text_hash"], "source_documents": source_files, "original_request_sha256": file_hash(output / "original-request.json") if (output / "original-request.json").is_file() else None, "model": self.backend.provenance(), "runtime": self.backend.health, "ffmpeg": self.audio.status, "generation": generation, "language": plan["language"], "units": units, "assembly_cache_key": assembly_key, "assembly_cache_hit": assembly_hit, "codec_padding": [e for e in execution_events if e.get("owner") == "mp3-encoding"], "warnings": plan["issues"], "elapsed_seconds": time.monotonic() - started, "capabilities": self.backend.capabilities, "listening_acceptance": "pending", "generation_granularity": "natural-sentence-or-short-paragraph; chapter-continuity-unverified"}
         write_json(output / "manifest.json", manifest)
         artifacts = {}

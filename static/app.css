@@ -244,6 +244,7 @@ progress { display: block; width: 100%; height: 4px; border: 0; border-radius: 2
 progress::-webkit-progress-bar { background: #e7eee9; }
 progress::-webkit-progress-value { background: #459977; }
 progress::-moz-progress-bar { background: #459977; }
+.job-progress-detail { color: var(--muted); font-size: 11px; margin: 0 0 9px; }
 .job-meta { display: flex; justify-content: space-between; align-items: center; color: var(--subtle); font-size: 10px; padding-top: 7px; }
 .job-error { color: #973d3d; font-size: 11px; overflow-wrap: anywhere; background: #fff0f0; border-left: 2px solid var(--red); padding: 10px; margin-top: 10px; }
 .job-error strong { display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; }
@@ -289,9 +290,9 @@ audio { display: block; width: 100%; height: 32px; }
 .voice-avatar .icon { width: 17px; height: 17px; }
 .voice-heading { display: flex; align-items: center; gap: 8px; }
 .voice-item h3 { font-size: 12px; font-weight: 500; margin: 0; overflow-wrap: anywhere; }
-.voice-heading .badge { margin-left: auto; }
 .voice-item p { color: var(--subtle); font-size: 10px; margin: 4px 0 0; }
-.voice-actions { display: flex; gap: 9px; align-items: center; }
+.voice-actions { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
+.voice-actions .badge { flex-shrink: 0; }
 .voice-actions .secondary { font-size: 10px; padding: 4px 8px; }
 .voice-actions .link-button { font-size: 10px; }
 .voice-menu { position: relative; }
@@ -391,7 +392,7 @@ footer i { font-style: normal; }
   .plan-page > summary, .unit, .page-direction, .page-actions, #job-content, .full-player, .listen-note { padding-inline: 12px; }
   .comparison { grid-template-columns: 1fr; } .empty-state { min-height: 190px; }
   .voice-item { padding: 10px 12px; grid-template-columns: 23px minmax(0,1fr); } .voice-actions { grid-column: 2; } .sample-slot { grid-column: 2; }
-  .voice-heading .badge { font-size: 9px; }
+  .voice-actions .badge { font-size: 9px; }
   .upload-options { margin-inline: -12px; }
   footer { gap: 5px; flex-wrap: wrap; font-size: 8px; }
 }

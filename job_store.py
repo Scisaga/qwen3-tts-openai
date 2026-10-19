@@ -43,7 +43,7 @@ class JobStore:
         if row is None:
             raise ServiceError("job_not_found", "Unknown job_id", 404)
         result = dict(row)
-        for key in ("request", "plan", "result", "error"):
+        for key in ("request", "plan", "result", "error", "progress_detail"):
             result[key] = json.loads(result[key]) if result[key] else None
         return result
 
@@ -67,9 +67,10 @@ class JobStore:
                 db.execute("UPDATE jobs SET cancel_requested=1,state=CASE WHEN state='queued' THEN 'cancelled' ELSE state END,updated=? WHERE id=?", (time.time(), ident))
         return self.get(ident)
 
-    def progress(self, ident, value):
+    def progress(self, ident, value, detail=None):
         with self.database.connect() as db:
-            db.execute("UPDATE jobs SET progress=?,updated=? WHERE id=? AND state='running'", (min(0.99, value), time.time(), ident))
+            db.execute("UPDATE jobs SET progress=MAX(progress,?),progress_detail=?,updated=? WHERE id=? AND state='running'",
+                       (max(0, min(0.99, value)), json.dumps(detail, ensure_ascii=False, allow_nan=False) if detail else None, time.time(), ident))
 
     def finish(self, ident, state, result=None, error=None):
         assert state in TERMINAL
@@ -78,4 +79,4 @@ class JobStore:
             row = db.execute("SELECT cancel_requested FROM jobs WHERE id=?", (ident,)).fetchone()
             if row and row[0] and state == "succeeded":
                 state, result = "cancelled", None
-            db.execute("UPDATE jobs SET state=?,progress=?,result=?,error=?,updated=? WHERE id=?", (state, 1 if state == "succeeded" else 0, json.dumps(result, ensure_ascii=False) if result else None, json.dumps(error, ensure_ascii=False) if error else None, time.time(), ident))
+            db.execute("UPDATE jobs SET state=?,progress=?,progress_detail=?,result=?,error=?,updated=? WHERE id=?", (state, 1 if state == "succeeded" else 0, json.dumps({"stage":state}), json.dumps(result, ensure_ascii=False) if result else None, json.dumps(error, ensure_ascii=False) if error else None, time.time(), ident))

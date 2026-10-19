@@ -9,9 +9,17 @@ from errors import ServiceError
 from backends.qwen import capabilities
 
 
+def configure_model_threads(settings, torch):
+    # Set once in the owned model child, before any eager inference work.
+    torch.set_num_threads(settings.torch_num_threads)
+    torch.set_num_interop_threads(settings.torch_num_interop_threads)
+
+
 def model_process(connection, values):
     settings = Settings(**values)
     settings.configure_process()
+    import torch
+    configure_model_threads(settings, torch)
     from backends.qwen import OfficialQwen
     adapter = OfficialQwen(settings)
     while True:
@@ -27,7 +35,7 @@ def model_process(connection, values):
             elif command == "prepare":
                 _, result = adapter.prepare(**arguments)
             else:
-                result = adapter.generate(**arguments)
+                result = adapter.generate(**arguments, progress=lambda event: connection.send({"event": "progress", "progress": event}))
             connection.send({"ok": True, "result": result, "status": adapter.status()})
         except Exception as e:
             if isinstance(e, ServiceError):
@@ -54,11 +62,11 @@ class ModelRuntime:
     def __init__(self, settings: Settings):
         self.settings, self.process, self.connection = settings, None, None
         self.capabilities = capabilities(settings)
-        self.health = {"state": "unloaded", "backend": settings.backend, "model_id": settings.model_id, "dtype": settings.dtype, "attention": settings.attn_implementation, "device": settings.device_map, "gpu_selection": settings.gpu_selection(), "capabilities": self.capabilities}
+        self.health = {"state": "unloaded", "backend": settings.backend, "model_id": settings.model_id, "dtype": settings.dtype, "attention": settings.attn_implementation, "cpu_threads": {"intraop": settings.torch_num_threads, "interop": settings.torch_num_interop_threads}, "inference_engine": "cuda-graph-predictor" if settings.cuda_graph_enabled else "official", "device": settings.device_map, "gpu_selection": settings.gpu_selection(), "capabilities": self.capabilities}
         self._guard = threading.Lock()
         self.conditioning_identity = None
 
-    def _rpc(self, command, arguments, timeout):
+    def _rpc(self, command, arguments, timeout, progress=None):
         if not self.process or not self.process.is_alive():
             context = multiprocessing.get_context("spawn")
             self.connection, child = context.Pipe()
@@ -74,11 +82,21 @@ class ModelRuntime:
                 except EOFError as e:
                     self.health.update(state="failed", error="Model holder exited unexpectedly")
                     raise ServiceError("model_process_failed", "Model holder exited; inspect process logs", 503) from e
+                if reply.get("event") == "progress":
+                    if progress:
+                        try:
+                            progress(reply["progress"])
+                        except Exception:
+                            self.stop()  # Do not leave this request's reply in the next RPC.
+                            raise
+                    continue
                 self.health.update(reply.get("status", {}))
                 if self.settings.backend == "qwen-custom" and self.health.get("identity", {}).get("tts_model_size") == "0b6":
                     self.capabilities["instruction_control"] = "unsupported"
                 if not reply["ok"]:
                     error = reply["error"]
+                    if error["type"] == "cuda_graph_failed":
+                        self.stop()
                     self.health.update(state="failed", error=error)
                     raise ServiceError(error["type"], error["message"], reply["http_status"], error.get("details"))
                 self.health.update(state="ready", error=None)
@@ -116,8 +134,8 @@ class ModelRuntime:
         else:
             self.select("base")
 
-    def generate(self, unit, generation, language, target):
-        return self._rpc("generate", {"unit": unit, "generation": generation, "language": language, "target": str(target)}, self.settings.generation_timeout_seconds)
+    def generate(self, unit, generation, language, target, progress=None):
+        return self._rpc("generate", {"unit": unit, "generation": generation, "language": language, "target": str(target)}, self.settings.generation_timeout_seconds, progress)
 
     def stop(self):
         with self._guard:

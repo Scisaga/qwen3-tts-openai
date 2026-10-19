@@ -14,7 +14,12 @@ from tests.conftest import ControlledBackend
 if __name__ == "__main__":
     quick = os.getenv("UI_TEST_QUICK_CLONE") == "1"
     settings=Settings.from_env().model_copy(update={"data_dir":Path(os.environ["UI_TEST_DATA_DIR"]),"preload_model":False,"min_free_disk_bytes":0,"api_token":"ui-test-token", "asr_base_url":"http://asr.test" if quick else ""})
-    app = create_app(settings,ControlledBackend(delay=.15))
+    if os.getenv("UI_TEST_PROGRESS") == "1":
+        from tests.test_progress import ProgressBackend
+        backend = ProgressBackend()
+    else:
+        backend = ControlledBackend(delay=.15)
+    app = create_app(settings, backend)
     if quick:
         calls = 0
         def controlled_asr(request):

@@ -18,3 +18,9 @@ Copyright 2026 The Alibaba Qwen team, SPDX-License-Identifier: Apache-2.0.
 Official model weights have their own model-card licensing terms.
 FFmpeg and Rubber Band are external audio tools distributed by their respective
 projects; their licenses and source are provided by the OS package distributions.
+
+The optional predictor CUDA graph adapts the static-cache capture strategy from
+andimarafioti/faster-qwen3-tts, commit b35fdc7d71eb3e4d19e63f4b4a330a1aef31d682.
+Copyright (c) 2026 Andres Marafioti, MIT License.
+The required license notice is reproduced in licenses/faster-qwen3-tts.txt.
+Its model wrapper, reference recordings and alternate dependencies are not bundled.

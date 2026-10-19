@@ -17,7 +17,10 @@ class Settings(BaseModel):
     backend: Literal["qwen-base", "qwen-custom", "qwen-combined-experimental"] = "qwen-base"
     device_map: str = "cuda:0"
     dtype: Literal["float16"] = "float16"
-    attn_implementation: Literal["eager", "sdpa"] = "eager"
+    attn_implementation: Literal["eager", "sdpa"] = "sdpa"
+    torch_num_threads: int = Field(1, ge=1, le=64)
+    torch_num_interop_threads: int = Field(1, ge=1, le=64)
+    cuda_graph_enabled: bool = False
     gpu_device: str = ""
     gpu_host_device: str = ""
     hf_home: Path = Path("models")
@@ -92,6 +95,8 @@ class Settings(BaseModel):
 
     @model_validator(mode="after")
     def device_rules(self):
+        if self.cuda_graph_enabled and (self.attn_implementation != "sdpa" or self.backend == "qwen-combined-experimental"):
+            raise ValueError("CUDA_GRAPH_ENABLED requires SDPA and qwen-base or qwen-custom")
         if bool(self.tls_certfile) != bool(self.tls_keyfile):
             raise ValueError("Configure TLS_CERTFILE and TLS_KEYFILE together, or leave both empty")
         if self.device_map != "cuda:0":

@@ -29,6 +29,10 @@
 
 ![快速复刻：并列 Tab、参考录音回放与文字确认](docs/images/quick-clone.png)
 
+配音生成过程中，进度会随实际解码步骤更新，页面每半秒刷新，显示处理阶段和已生成的音频长度。模型生成的总长度无法提前确定，因此段内百分比标为估算；产物保存成功后显示 100%。
+
+![生成中的进度与音频长度（受控演示）](docs/images/progress.png)
+
 *截图使用当前界面、演示文稿和受控测试音频，设备与任务标识已隐藏。截图用于展示操作流程，音色效果请在真实模型中试听确认。仓库不附带参考录音，首次使用请添加自己的音色。*
 
 ## 主要功能
@@ -172,6 +176,30 @@ docker compose logs -f qwen3_tts
 `/health` 表示服务存活，`/ready` 在模型与音频工具就绪后返回 200。模型保存在 `models/`，参考录音、任务、缓存与音频保存在 `data/`；两者均不进入 Git。
 
 需要接口鉴权时，可设置 `API_TOKEN`，调用 `/v1/*` 和 `/mcp/` 时携带 `Authorization: Bearer <token>`。更多可调选项见 [.env.example](.env.example)。
+
+### 推理速度
+
+默认使用 SDPA 注意力计算，并在模型进程中启用纯推理模式。CPU 计算线程配置如下；已有 `.env` 的部署需更新这些字段并重启服务：
+
+```dotenv
+ATTN_IMPLEMENTATION=sdpa
+TORCH_NUM_THREADS=1
+TORCH_NUM_INTEROP_THREADS=1
+```
+
+两个线程数只控制模型进程内的 CPU 计算，配音任务仍由单个 GPU 模型进程串行处理。可通过 `/health.model` 的 `attention`、`cpu_threads` 和 `hardware` 检查生效值；`ATTN_IMPLEMENTATION=eager` 保留为可显式选择的配置。
+
+Qwen3-TTS 按步骤生成音频，小批量解码会交替执行 CPU 调度与 GPU 计算，GPU 利用率不等同于生成速度。评估配置时应比较同一参考音色、文稿和生成参数下的预热后耗时，并确认任务没有命中原始音频缓存；具体方法见 [开发与验证](docs/testing.md)。
+
+可选启用 **CUDA Graph + 静态 KV 缓存**，将每个音频解码步内的 15 步子模型预测捕获为可重复回放的计算图：
+
+```dotenv
+CUDA_GRAPH_ENABLED=1
+```
+
+此选项要求 `ATTN_IMPLEMENTATION=sdpa`，兼容 `qwen-base` 和 `qwen-custom` 的预测器接口，默认关闭；真实 GPU 验证当前覆盖 1.7B Base，其他模式需独立验证。无需更换模型权重或安装额外推理库；首次加载会预热、捕获计算图。改变采样参数时会重新捕获，进程最多保留一套图。外层文本、参考音色处理与停止条件继续由固定版本的官方 SDK 执行。
+
+重启后检查 `/ready`，以及 `/health.model.inference_engine=cuda-graph-predictor`、`cuda_graph.captured=true`。生成记录会包含该任务的 `replays_this_call`，并与官方路径的缓存隔离。不同执行路径的采样结果可能不同，应分别检查文字完整性与音色听感。捕获失败会明确报错；设置 `CUDA_GRAPH_ENABLED=0` 并重启可切回官方路径。
 
 ## 接入现有应用
 

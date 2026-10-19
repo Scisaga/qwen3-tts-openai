@@ -49,10 +49,13 @@ class Database:
                     id TEXT PRIMARY KEY, kind TEXT NOT NULL, state TEXT NOT NULL,
                     request TEXT NOT NULL, plan TEXT, result TEXT, error TEXT,
                     created REAL NOT NULL, updated REAL NOT NULL,
-                    progress REAL NOT NULL DEFAULT 0, cancel_requested INTEGER NOT NULL DEFAULT 0
+                    progress REAL NOT NULL DEFAULT 0, cancel_requested INTEGER NOT NULL DEFAULT 0,
+                    progress_detail TEXT
                 );
                 CREATE INDEX IF NOT EXISTS jobs_state_created ON jobs(state, created);
             """)
+            if "progress_detail" not in {row["name"] for row in db.execute("PRAGMA table_info(jobs)")}:
+                db.execute("ALTER TABLE jobs ADD COLUMN progress_detail TEXT")
 
     @contextmanager
     def connect(self):

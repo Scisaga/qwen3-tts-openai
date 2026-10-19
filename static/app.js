@@ -184,7 +184,7 @@ async function voices() {
   else if (result.voices.length) $("voice-select").value = result.voices[0].voice_id;
   if (previous !== $("voice-select").value) markPlanStale();
   $("preview-voice").disabled = !result.voices.some(v => v.voice_id === $("voice-select").value && !v.preset);
-  $("voice-list").innerHTML = result.voices.length ? result.voices.map(v => `<div class="voice-item"><span class="voice-avatar">${icon("voice")}</span><div class="voice-body"><div class="voice-heading"><h3>${esc(v.name)}</h3><span class="badge ${v.conditioning_state === "ready" ? "ready" : v.conditioning_state === "failed" ? "failed" : "warning"}">${esc(voiceNames[v.conditioning_state] || v.conditioning_state)}</span></div><p title="${esc(v.voice_id)}">${esc(v.mode === "icl" ? "完整参考" : v.mode === "x_vector_only" ? "说话人特征" : "预设音色")}${v.reference?.duration_seconds ? ` · ${v.reference.duration_seconds.toFixed(1)} 秒` : ""}</p>${v.error ? `<p class="failed">${esc(v.error.message)}</p>` : ""}</div><div class="voice-actions">${v.preset ? "" : `<button class="link-button" data-sample="${esc(v.voice_id)}">试听</button>`}<button class="secondary" data-select-voice="${esc(v.voice_id)}">使用</button>${v.preset ? "" : `<details class="voice-menu"><summary aria-label="${esc(v.name)}的更多操作">⋯</summary><div class="voice-menu-items"><button class="link-button" data-edit="${esc(v.voice_id)}">编辑对应文字</button><button class="link-button" data-prepare="${esc(v.voice_id)}">重新提取</button></div></details>`}</div><div class="sample-slot"></div></div>`).join("") : `<div class="empty-state"><svg class="icon empty-icon"><use href="#i-voice"/></svg><strong>还没有参考音色</strong><p>选择清晰录音，添加你的第一个音色。</p></div>`;
+  $("voice-list").innerHTML = result.voices.length ? result.voices.map(v => `<div class="voice-item"><span class="voice-avatar">${icon("voice")}</span><div class="voice-body"><div class="voice-heading"><h3>${esc(v.name)}</h3></div><p title="${esc(v.voice_id)}">${esc(v.mode === "icl" ? "完整参考" : v.mode === "x_vector_only" ? "说话人特征" : "预设音色")}${v.reference?.duration_seconds ? ` · ${v.reference.duration_seconds.toFixed(1)} 秒` : ""}</p>${v.error ? `<p class="failed">${esc(v.error.message)}</p>` : ""}</div><div class="voice-actions"><span class="badge ${v.conditioning_state === "ready" ? "ready" : v.conditioning_state === "failed" ? "failed" : "warning"}">${esc(voiceNames[v.conditioning_state] || v.conditioning_state)}</span>${v.preset ? "" : `<button class="link-button" data-sample="${esc(v.voice_id)}">试听</button>`}<button class="secondary" data-select-voice="${esc(v.voice_id)}">使用</button>${v.preset ? "" : `<details class="voice-menu"><summary aria-label="${esc(v.name)}的更多操作">⋯</summary><div class="voice-menu-items"><button class="link-button" data-edit="${esc(v.voice_id)}">编辑对应文字</button><button class="link-button" data-prepare="${esc(v.voice_id)}">重新提取</button></div></details>`}</div><div class="sample-slot"></div></div>`).join("") : `<div class="empty-state"><svg class="icon empty-icon"><use href="#i-voice"/></svg><strong>还没有参考音色</strong><p>选择清晰录音，添加你的第一个音色。</p></div>`;
   $("voice-list").querySelectorAll("[data-select-voice]").forEach(b => b.onclick = () => { if ($("voice-select").value !== b.dataset.selectVoice) { markPlanStale(); clearVoicePreview(); } $("voice-select").value = b.dataset.selectVoice; $("preview-voice").disabled = !!state.voices.find(v => v.voice_id === b.dataset.selectVoice)?.preset; showView("studio"); });
   $("voice-list").querySelectorAll(".voice-menu").forEach(menu => menu.addEventListener("toggle", () => {
     if (!menu.open) return;
@@ -301,6 +301,15 @@ async function selectJob(ident) {
   showView("studio"); showPanel("task"); await pollJob();
 }
 function formatDate(seconds) { return new Date(seconds * 1000).toLocaleString("zh-CN", {timeZone:"Asia/Shanghai",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}); }
+function progressText(job) {
+  const detail = job.progress_detail;
+  if (!detail || job.status !== "running") return "";
+  const names = {preparing:"准备模型与音色", synthesizing:"生成音频", postprocessing:"处理语速与音量", unit_complete:"片段已生成", assembling:"拼接音频", encoding:"编码音频", saving:"保存产物"};
+  const parts = [names[detail.stage] || "执行中"];
+  if (detail.units_total > 1) parts.push(`第 ${detail.unit_index} / ${detail.units_total} 段`);
+  if (detail.stage === "synthesizing" && Number.isFinite(detail.generated_audio_seconds)) parts.push(`已生成约 ${detail.generated_audio_seconds.toFixed(1)} 秒音频`);
+  return parts.join(" · ");
+}
 async function pollJob() {
   if (!state.jobId || state.polling) return;
   state.polling = true;
@@ -311,8 +320,10 @@ async function pollJob() {
     $("job-status").textContent = jobNames[job.status] || job.status;
     $("job-status").className = "badge " + (job.status === "succeeded" ? "ready" : job.status === "failed" ? "failed" : job.status === "running" ? "warning" : "");
     $("job-kind").textContent = kindNames[job.kind] || job.kind;
-    $("job-percentage").textContent = job.status === "failed" || job.status === "cancelled" ? "—" : `${Math.round(job.progress * 100)}%`;
+    $("job-percentage").textContent = job.status === "failed" || job.status === "cancelled" ? "—" : `${job.progress_detail?.estimated && job.status === "running" ? "约 " : ""}${Math.round(job.progress * 100)}%`;
     $("job-progress").value = job.progress;
+    $("job-progress-detail").textContent = progressText(job);
+    $("job-progress-detail").hidden = !$("job-progress-detail").textContent;
     $("job-time").textContent = `提交于 ${formatDate(job.created_at)}`;
     $("cancel-button").hidden = !["queued","running"].includes(job.status);
     $("cancel-button").disabled = !!job.cancel_requested;
@@ -467,4 +478,7 @@ bind("load-ssml", async () => {
 bind("inspect-error", () => { showView("runtime"); $("diagnostic-disclosure").open = true; });
 $("api-token").onchange = () => run(async () => { await voices(); $("message").hidden = true; });
 sourceMeta(); run(async () => { await health(); await voices(); });
-setInterval(() => run(async () => { await health(); if (state.jobId) await pollJob(); }),3000);
+setInterval(() => run(health), 3000);
+setInterval(() => {
+  if (state.jobId && (!state.job || ["queued", "running"].includes(state.job.status))) run(pollJob);
+}, 500);

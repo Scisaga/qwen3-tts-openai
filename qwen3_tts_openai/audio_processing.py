@@ -11,9 +11,9 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from config import Settings
-from errors import ServiceError
-from storage import file_hash
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.storage import file_hash
 
 PROCESSING_VERSION = "rubberband-offline-pcm-v2"
 REFERENCE_VERSION = "native-rate-mono-v1"

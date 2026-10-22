@@ -8,12 +8,12 @@ import pytest
 import soundfile as sf
 from fastapi.testclient import TestClient
 
-from app import create_app
-from contracts import NarrationRequest
-from errors import ServiceError
-from job_store import JobStore
-from storage import Database, file_hash
-from synthesis_service import SynthesisService
+from qwen3_tts_openai.app import create_app
+from qwen3_tts_openai.contracts import NarrationRequest
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.job_store import JobStore
+from qwen3_tts_openai.storage import Database, file_hash
+from qwen3_tts_openai.synthesis_service import SynthesisService
 from tests.conftest import ControlledBackend, wait_done
 
 
@@ -177,6 +177,21 @@ def test_single_holder_lock_and_preload_does_not_block_http(settings):
         with pytest.raises(RuntimeError,match="already owned"):
             another.start()
         gate.set()
+
+
+def test_workbench_deep_links_keep_api_auth_and_unknown_routes(settings):
+    app = create_app(settings.model_copy(update={"api_token": "page-route-test"}), ControlledBackend())
+    with TestClient(app) as client:
+        for path in ("/", "/studio", "/voices", "/jobs", "/integrations/mcp", "/runtime",
+                     "/voices?tab=quick", "/voices?tab=upload", "/studio?mode=director", "/studio?mode=ssml"):
+            response = client.get(path)
+            assert response.status_code == 200, path
+            assert response.headers["content-type"].startswith("text/html")
+            assert '/static/app.js?' in response.text
+        assert client.get("/v1/voices").status_code == 401
+        assert client.post("/mcp/", json={}).status_code == 401
+        assert client.get("/no-such-page").status_code == 404
+        assert client.get("/v1/no-such-api", headers={"Authorization": "Bearer page-route-test"}).status_code == 404
 
 
 def test_api_upload_compile_speech_and_authenticated_download(settings,sample,director,profile):

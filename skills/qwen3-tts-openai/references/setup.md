@@ -36,6 +36,8 @@ python3 ~/.agents/skills/qwen3-tts-openai/scripts/tts_skill.py \
 
 ## 首次部署
 
+应用源码位于 `qwen3_tts_openai/`，依赖清单与锁文件位于 `requirements/`。Docker 镜像使用 `python -m qwen3_tts_openai` 启动服务；原生部署也在仓库根目录使用同一入口，并从 `requirements/requirements-gpu.lock` 安装依赖。升级目录结构时同步更新已有服务的启动命令和工作目录，保留 `.env`、`models/` 与 `data/`。网页的音色、任务和 MCP 页面以服务返回的状态与工具为准。
+
 仅在用户要求安装部署且目标上确实没有对应服务时执行。以下是部署流程，由智能体根据检查结果执行；安装脚本的 `install` 命令只安装 Skill。
 
 1. 在目标主机检查 `uname -sm`、`docker version`、`docker compose version`、Docker 访问权限和 NVIDIA Container Toolkit。缺失依赖按目标发行版的官方说明安装；保留现有驱动及其他 GPU 服务。
@@ -45,7 +47,7 @@ python3 ~/.agents/skills/qwen3-tts-openai/scripts/tts_skill.py \
    nvidia-smi --query-gpu=index,uuid,name,memory.total,memory.used --format=csv
    ```
 
-   当前仓库默认单卡 FP16 推理，`backends/qwen.py` 的 `verify_device()` 仍检查 RTX 2080 Ti 与 `sm_75`；镜像和探测脚本也检查 PyTorch 构建包含 `sm_75`。其他型号需要完成运行时适配、构建匹配和实机验证，当前代码不能直接启动它们。部署更新版本时以该 checkout 的实际检查和验证记录为准，不将当前验证型号写成长期产品边界。设备检查失败时报告具体原因，不跳过检查或切换产品、后端。
+   当前仓库默认单卡 FP16 推理，`qwen3_tts_openai/backends/qwen.py` 的 `verify_device()` 仍检查 RTX 2080 Ti 与 `sm_75`；镜像和探测脚本也检查 PyTorch 构建包含 `sm_75`。其他型号需要完成运行时适配、构建匹配和实机验证，当前代码不能直接启动它们。部署更新版本时以该 checkout 的实际检查和验证记录为准，不将当前验证型号写成长期产品边界。设备检查失败时报告具体原因，不跳过检查或切换产品、后端。
 
 3. 在用户指定的目录取得仓库。未指定时可选 `$HOME/services/qwen3-tts-openai`；先检查目录是否存在。已有 checkout 不执行自动 pull、reset 或清理。全新安装可执行：
 

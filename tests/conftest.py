@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from config import Settings
-from storage import digest
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.storage import digest
 
 ROOT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("PRELOAD_MODEL", "0")

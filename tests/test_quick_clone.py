@@ -9,11 +9,11 @@ import soundfile as sf
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app import create_app
-from asr_client import AsrClient
-from config import Settings
-from errors import ServiceError
-from storage import write_json
+from qwen3_tts_openai.app import create_app
+from qwen3_tts_openai.asr_client import AsrClient
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.storage import write_json
 from tests.conftest import ControlledBackend, wait_done
 
 
@@ -69,10 +69,11 @@ def test_quick_clone_binds_audio_to_reviewed_text_and_reuses_existing_queue(sett
         assert wav.startswith(b"RIFF") and wav in calls[0].content
         assert b'name="response_format"' in calls[0].content and b"json" in calls[0].content
         assert b'name="language"' in calls[0].content and b"zh" in calls[0].content
-        data = {"draft_id": draft["draft_id"], "name": "快速复刻测试", "ref_text": "用户确认后的实际文字。"}
+        data = {"draft_id": draft["draft_id"], "name": "快速复刻测试", "voice_id": "quick-narrator", "ref_text": "用户确认后的实际文字。"}
         registered = client.post("/v1/voices", data=data, headers=HEADERS)
         assert registered.status_code == 202, registered.text
         voice = registered.json()
+        assert voice["voice_id"] == "quick-narrator"
         assert voice["mode"] == "icl" and voice["ref_text"] == data["ref_text"]
         assert voice["reference"]["processed_sha256"] == draft["reference"]["processed_sha256"]
         assert wait_done(app.state.service, voice["preparation_job_id"])["state"] == "succeeded"
@@ -83,6 +84,7 @@ def test_quick_clone_binds_audio_to_reviewed_text_and_reuses_existing_queue(sett
         assert len(app.state.service.backend.preparations) == 1
         conflict = client.post("/v1/voices", data={**data, "ref_text": "另一段文字"}, headers=HEADERS)
         assert conflict.status_code == 409
+        assert client.post("/v1/voices", data={**data, "voice_id": "another-voice"}, headers=HEADERS).status_code == 409
         speech = client.post(
             "/v1/audio/speech",
             headers=HEADERS,

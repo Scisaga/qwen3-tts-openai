@@ -8,7 +8,6 @@
   const feature = () => state.health?.features?.quick_voice_clone;
   const canRecord = () => window.isSecureContext && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
   const recording = () => qc.recorder?.state === "recording";
-  let openFromHash = location.hash === "#quick-clone";
   function status(message, error = false) {
     $("quick-status").textContent = message;
     $("quick-status").className = "quick-status" + (error ? " failed" : "");
@@ -16,7 +15,6 @@
   function refresh() {
     const enabled = !!feature()?.enabled;
     refreshVoiceEntryTabs(); $("go-quick-clone").hidden = !enabled;
-    if (enabled && openFromHash) { openFromHash = false; showView("voices"); selectVoiceEntry("quick"); }
     const available = feature()?.available;
     $("quick-asr-state").textContent = available ? "自动识别已就绪" : feature()?.status === "unchecked" ? "检查自动识别" : "自动识别暂不可用";
     $("quick-asr-state").className = "badge " + (available ? "ready" : "warning");
@@ -28,7 +26,7 @@
       : "当前浏览器不支持网页录音，请使用支持录音的浏览器，或上传已有的短录音。";
     const httpsUrl = feature()?.https_url;
     $("quick-secure-actions").hidden = window.isSecureContext || !httpsUrl;
-    if (httpsUrl) $("quick-secure-link").href = httpsUrl + "/#quick-clone";
+    if (httpsUrl) $("quick-secure-link").href = httpsUrl + "/voices?tab=quick";
     const localCa = !!feature()?.https_local_ca;
     $("quick-ca-link").hidden = !localCa; $("quick-ca-hint").hidden = window.isSecureContext || !httpsUrl || !localCa;
     const locked = qc.busy || qc.creating || qc.auditioning;
@@ -42,6 +40,7 @@
     $("quick-retry").disabled = !enabled || (!qc.draft && !qc.file) || locked || recording() || qc.starting || !!qc.voiceId;
     $("quick-reset").disabled = qc.creating || !(qc.draft || qc.file || qc.starting || recording());
     $("quick-name").disabled = qc.creating;
+    $("quick-voice-id").disabled = qc.creating || !!qc.voiceId;
     $("quick-manual").disabled = qc.creating || !!qc.voiceId;
     $("quick-ref-text").disabled = qc.busy || qc.creating || recording();
     $("quick-create").disabled = !enabled || !qc.draft || expired || locked || recording() || qc.starting || !!qc.voiceId
@@ -70,6 +69,8 @@
     $("quick-result-audio").pause(); $("quick-result-audio").removeAttribute("src"); $("quick-result-audio").hidden = true;
     if (qc.resultUrl) URL.revokeObjectURL(qc.resultUrl); qc.resultUrl = null;
     $("quick-result").hidden = true; $("quick-prepare").hidden = true;
+    if (qc.voiceId) $("quick-voice-id").value = "";
+    $("quick-result-voice-id").textContent = "";
     qc.voiceId = null; qc.ready = false;
   }
   function discardDraft() {
@@ -207,9 +208,11 @@
     try {
       const body = new FormData(); body.set("draft_id", qc.draft.draft_id);
       body.set("name", $("quick-name").value.trim()); body.set("ref_text", $("quick-ref-text").value.trim()); body.set("mode", "icl");
+      if ($("quick-voice-id").value.trim()) body.set("voice_id", $("quick-voice-id").value.trim());
       const voice = await json("/v1/voices", {method:"POST", body});
       if (sequence !== qc.sequence) return;
       qc.voiceId = voice.voice_id; $("quick-result").hidden = false;
+      $("quick-result-voice-id").textContent = voice.voice_id;
       $("quick-result-status").textContent = "音色已保存，正在排队提取参考条件…";
       await voices();
       if (voice.preparation_job_id) watchPreparation(voice.preparation_job_id, sequence);
@@ -239,9 +242,9 @@
     } catch (error) { if (sequence === qc.sequence) $("quick-result-status").textContent = `试听未完成：${error.message}`; }
     finally { if (sequence === qc.sequence) { qc.auditioning = false; qc.auditionJob = null; refresh(); } }
   }
-  $("go-quick-clone").onclick = () => { state.uploadFromStudio = false; showView("voices"); selectVoiceEntry("quick"); $("quick-clone-card").scrollIntoView({block:"nearest"}); };
+  $("go-quick-clone").onclick = () => { state.uploadFromStudio = false; showView("voices", {history:false}); selectVoiceEntry("quick"); $("quick-clone-card").scrollIntoView({block:"nearest"}); };
   $("quick-record").onclick = () => {
-    if (!window.isSecureContext && feature()?.https_url) { location.assign(feature().https_url + "/#quick-clone"); return; }
+    if (!window.isSecureContext && feature()?.https_url) { location.assign(feature().https_url + "/voices?tab=quick"); return; }
     startRecording();
   };
   $("quick-stop").onclick = () => { if (recording()) qc.recorder.stop(); };
@@ -256,6 +259,7 @@
   $("quick-name").oninput = refresh; $("quick-ref-text").oninput = refresh;
   $("quick-clone-form").onsubmit = event => { event.preventDefault(); create(); };
   $("quick-audition").onclick = audition;
+  $("copy-quick-voice-id").onclick = () => copyVoiceId(qc.voiceId, $("quick-result-voice-id"));
   $("quick-use").onclick = () => { $("voice-select").value = qc.voiceId; clearVoicePreview(); markPlanStale(); showView("studio"); };
   $("quick-prepare").onclick = () => run(async () => {
     const sequence = qc.sequence;
@@ -263,10 +267,6 @@
     $("quick-prepare").hidden = true; $("quick-result-status").textContent = "正在重新提取音色…";
     watchPreparation(job.job_id, sequence);
   }, $("quick-prepare"));
-  document.addEventListener("click", event => {
-    const nav = event.target.closest("[data-view]");
-    if (nav && nav.dataset.view !== "voices" && (recording() || qc.starting)) reset();
-  });
   window.addEventListener("pagehide", () => { qc.sequence++; qc.controller?.abort(); if (recording()) qc.recorder.stop(); stopTracks(); clearPreview(); });
   window.QuickClone = {refresh, leaveRecording:() => { if (recording() || qc.starting) reset(); }}; refresh();
 })();

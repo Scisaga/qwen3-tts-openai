@@ -6,10 +6,10 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from config import Settings
-from contracts import GenerationOptions, NarrationRequest
-from synthesis_service import SynthesisService
-from storage import write_json
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.contracts import GenerationOptions, NarrationRequest
+from qwen3_tts_openai.synthesis_service import SynthesisService
+from qwen3_tts_openai.storage import write_json
 
 
 def main(args):

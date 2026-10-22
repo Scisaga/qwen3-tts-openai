@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from types import SimpleNamespace
 
-from errors import ServiceError
+from qwen3_tts_openai.errors import ServiceError
 
 CUDA_GRAPH_VERSION = "qwen-predictor-static-v1"
 

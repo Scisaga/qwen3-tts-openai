@@ -6,9 +6,10 @@
   <meta name="theme-color" content="#f4f7f5">
   <title>Qwen3-TTS · 配音工作台</title>
   <link rel="icon" href="/static/favicon.svg?v=20261012-4">
-  <link rel="stylesheet" href="/static/app.css?v=20261015-progress-1">
-  <script src="/static/app.js?v=20261015-progress-1" defer></script>
-  <script src="/static/quick-clone.js?v=20261015-progress-1" defer></script>
+  <link rel="stylesheet" href="/static/app.css?v=20261023-typography-1">
+  <script src="/static/app.js?v=20261023-id-order-1" defer></script>
+  <script src="/static/mcp.js?v=20261023-typography-1" defer></script>
+  <script src="/static/quick-clone.js?v=20261023-typography-1" defer></script>
 </head>
 <body>
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -16,6 +17,7 @@
     <symbol id="i-voice" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11v1a7 7 0 0 0 14 0v-1m-7 8v3m-4 0h8"/></symbol>
     <symbol id="i-jobs" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zm9 0v5h4M9 12h7m-7 4h5"/></symbol>
     <symbol id="i-runtime" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 1v5m6-5v5M9 18v5m6-5v5M1 9h5m-5 6h5m12-6h5m-5 6h5m-13-5h4v4h-4z"/></symbol>
+    <symbol id="i-mcp" viewBox="0 0 24 24"><path d="m8 5-5 7 5 7m8-14 5 7-5 7m-3-16-2 18"/></symbol>
     <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></symbol>
     <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
@@ -24,16 +26,17 @@
     <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6h7l2 3h9v11H3z"/></symbol>
   </defs></svg>
   <aside class="sidebar">
-    <a class="brand" href="/" aria-label="Qwen3-TTS 配音工作台">
+    <a class="brand" href="/studio" aria-label="Qwen3-TTS 配音工作台">
       <img class="brand-icon" src="/static/favicon.svg?v=20261012-4" width="32" height="32" alt="文字转语音">
       <span class="brand-copy"><strong>Qwen3-TTS</strong><small>本地配音工作台</small></span>
     </a>
     <div class="nav-caption">工作空间</div>
     <nav aria-label="主导航">
-      <button class="nav active" data-view="studio" aria-current="page"><svg class="icon"><use href="#i-studio"/></svg><span>配音工作台</span></button>
-      <button class="nav" data-view="voices"><svg class="icon"><use href="#i-voice"/></svg><span>音色管理</span><span class="nav-count" id="voice-count">0</span></button>
-      <button class="nav" data-view="jobs"><svg class="icon"><use href="#i-jobs"/></svg><span>任务与产物</span></button>
-      <button class="nav" data-view="runtime"><svg class="icon"><use href="#i-runtime"/></svg><span>运行状态</span><span id="runtime-dot" class="status-dot" aria-label="读取模型状态"></span></button>
+      <a class="nav active" data-view="studio" aria-current="page" href="/studio"><svg class="icon"><use href="#i-studio"/></svg><span>配音工作台</span></a>
+      <a class="nav" data-view="voices" href="/voices"><svg class="icon"><use href="#i-voice"/></svg><span>音色管理</span><span class="nav-count" id="voice-count">0</span></a>
+      <a class="nav" data-view="jobs" href="/jobs"><svg class="icon"><use href="#i-jobs"/></svg><span>任务与产物</span></a>
+      <a class="nav" data-view="mcp" href="/integrations/mcp"><svg class="icon"><use href="#i-mcp"/></svg><span>MCP 接入</span></a>
+      <a class="nav" data-view="runtime" href="/runtime"><svg class="icon"><use href="#i-runtime"/></svg><span>运行状态</span><span id="runtime-dot" class="status-dot" aria-label="读取模型状态"></span></a>
     </nav>
     <div class="sidebar-note"><svg class="icon"><use href="#i-studio"/></svg><span>从文字到声音<small>参考音色 · 精细控制 · 本地合成</small></span></div>
     <div class="sidebar-bottom">
@@ -67,7 +70,7 @@
               <div class="source-editor"><div class="editor-toolbar"><span><i class="file-dot"></i>导演稿 <small>JSON</small></span><div class="toolbar-actions"><label class="file-label">导入文件<input id="director-file" type="file" accept=".json,application/json"></label><button class="link-button" id="load-example">载入示例</button></div></div><textarea id="director-editor" aria-label="导演稿 JSON" spellcheck="false" placeholder="此页签用于 narration_director.json，可导入 JSON 文件或载入示例。&#10;&#10;普通文章请使用「文本配音」，也可在此粘贴后点击预检自动识别。"></textarea><div class="editor-footer"><span id="source-meta">等待输入文稿</span><span>UTF-8</span></div></div>
               <details class="disclosure" id="profile-disclosure"><summary>音色配置与发音规则<span class="muted">可选</span></summary><div class="disclosure-body"><div class="file-row"><span class="hint">全局语速、音高和已确认的术语读法</span><label class="file-label">导入配置<input id="profile-file" type="file" accept=".json,application/json"></label></div><textarea id="profile-editor" class="short" aria-label="音色配置 JSON" spellcheck="false" placeholder="粘贴 voice_profile.json">{}</textarea></div></details>
             </div>
-            <div class="mode" id="mode-ssml" role="tabpanel" aria-labelledby="tab-ssml" hidden><div class="source-editor"><div class="editor-toolbar"><span><i class="file-dot"></i>SSML <small>XML</small></span><button class="link-button" id="load-ssml">载入示例</button></div><textarea id="ssml-editor" aria-label="SSML" spellcheck="false" placeholder="粘贴 speak XML"></textarea></div><details class="disclosure"><summary>命名音色映射<span class="muted">JSON</span></summary><div class="disclosure-body"><p class="hint">将 SSML 中的音色名称对应到已注册的本地音色。</p><textarea id="voice-mapping" class="tiny" aria-label="音色名称映射 JSON" spellcheck="false" placeholder='{"reference-speaker":"voice_..."}'>{}</textarea></div></details></div>
+            <div class="mode" id="mode-ssml" role="tabpanel" aria-labelledby="tab-ssml" hidden><div class="source-editor"><div class="editor-toolbar"><span><i class="file-dot"></i>SSML <small>XML</small></span><button class="link-button" id="load-ssml">载入示例</button></div><textarea id="ssml-editor" aria-label="SSML" spellcheck="false" placeholder="粘贴 speak XML"></textarea></div><details class="disclosure"><summary>命名音色映射<span class="muted">JSON</span></summary><div class="disclosure-body"><p class="hint">将 SSML 中的音色名称对应到已注册的本地音色。</p><textarea id="voice-mapping" class="tiny" aria-label="音色名称映射 JSON" spellcheck="false" placeholder='{"reference-speaker":"narrator"}'>{}</textarea></div></details></div>
             <div class="mode" id="mode-text" role="tabpanel" aria-labelledby="tab-text"><div class="text-copy"><label>配音正文<textarea id="text-editor" class="text-editor" placeholder="在这里粘贴要朗读的文字…&#10;&#10;短句或整篇文章均可，点击上方「生成配音」即可开始。"></textarea></label><div class="text-meta"><span id="text-meta">等待输入正文</span><span>原文与换行完整保留</span></div></div><div class="text-controls"><span>语速</span><div class="speed-control"><button type="button" data-speed-step="-0.05" aria-label="减慢语速">−</button><input id="text-speed" type="number" aria-label="语速倍率" min="0.25" max="4" step="0.05" value="1"><span>×</span><button type="button" data-speed-step="0.05" aria-label="加快语速">＋</button></div><span class="hint">默认自然语速</span></div></div>
             <details class="disclosure advanced-options"><summary>更多设置<span class="muted" id="settings-summary">默认设置</span></summary><div class="disclosure-body"><div class="row"><label id="compatibility-field">兼容规则<select id="compatibility"><option value="build-narrated-presentation">原技能规则（±0.1st）</option><option value="generic">通用控制范围（±12st）</option></select></label><label>随机种子<input id="seed" type="number" min="0" value="0"></label></div><label id="expression-field">表达要求<input id="text-instructions" placeholder="例如：温暖、克制的讲解；按模型能力预检"></label><label class="check"><input id="allow-experimental" type="checkbox">允许尚未验收的组合表达实验</label></div></details>
           </div>
@@ -107,18 +110,62 @@
           <div class="quick-status" id="quick-status" role="status" aria-live="polite">录音结束后会自动识别文字，也可以上传已有录音。</div>
           <div class="quick-draft-actions"><button type="button" class="link-button" id="quick-retry" disabled>重新识别文字</button><button type="button" class="link-button" id="quick-reset" disabled>清除录音</button></div>
           <label>音色名称<input id="quick-name" required maxlength="100" placeholder="例如：我的讲解音色"></label>
+          <label>音色 ID<span class="optional-label">可选</span><input id="quick-voice-id" maxlength="40" spellcheck="false" autocapitalize="none" placeholder="例如：narrator；留空按名称生成" aria-describedby="quick-voice-id-hint"></label>
+          <p class="hint" id="quick-voice-id-hint">用于 API 和导演稿。支持小写字母、汉字、数字和连字符。</p>
           <label>录音对应文字<textarea id="quick-ref-text" class="short" required maxlength="4000" placeholder="识别结果会自动填入。请回听并确认与录音一致，也可以手动填写。"></textarea></label>
           <p class="hint">确认文字后生成音色，保存后可以用新的句子试听。</p>
           <button type="submit" id="quick-create" disabled>生成音色</button>
-          <div id="quick-result" class="quick-result" hidden><p id="quick-result-status" role="status" aria-live="polite"></p><div class="quick-result-actions"><button type="button" class="secondary" id="quick-audition" disabled><svg class="icon"><use href="#i-play"/></svg>用新句子试听</button><button type="button" class="link-button" id="quick-use" disabled>使用这个音色</button><button type="button" class="link-button" id="quick-prepare" hidden>重新提取</button></div><audio id="quick-result-audio" controls aria-label="快速复刻新句子试听" hidden></audio></div>
+          <div id="quick-result" class="quick-result" hidden><button type="button" class="voice-id-badge" id="copy-quick-voice-id" title="点击复制音色 ID" aria-label="复制新音色 ID"><span aria-hidden="true">id</span><code id="quick-result-voice-id"></code></button><p id="quick-result-status" role="status" aria-live="polite"></p><div class="quick-result-actions"><button type="button" class="secondary" id="quick-audition" disabled><svg class="icon"><use href="#i-play"/></svg>用新句子试听</button><button type="button" class="link-button" id="quick-use" disabled>使用这个音色</button><button type="button" class="link-button" id="quick-prepare" hidden>重新提取</button></div><audio id="quick-result-audio" controls aria-label="快速复刻新句子试听" hidden></audio></div>
         </form>
       </article>
       <article class="card voice-upload" id="voice-upload-card" role="tabpanel" aria-labelledby="voice-tab-upload"><div class="card-header"><span class="muted">上传已有的参考录音</span><span class="muted">WAV · 1–30 秒</span></div><form id="voice-form" class="card-body">
         <label class="drop"><svg class="icon"><use href="#i-upload"/></svg><span class="upload-copy"><strong id="sample-name">选择参考录音</strong><small>清晰的 WAV 文件 · 保留原始录音</small></span><span class="upload-choice">选择 WAV</span><input id="sample-file" name="file" type="file" accept=".wav,audio/wav" required aria-label="选择参考录音 WAV"></label>
-        <audio id="sample-preview" controls hidden></audio><label>音色名称<input id="voice-name" name="name" required maxlength="100" placeholder="选择录音后自动填写，可修改"></label><label>录音对应文字<span class="optional-label">可选</span><textarea id="ref-text" name="ref_text" class="short" maxlength="4000" placeholder="填写录音中实际说出的文字，使用完整参考。留空则仅提取说话人特征。"></textarea></label><details class="disclosure upload-options"><summary>参考方式<span class="muted">默认自动选择</span></summary><div class="disclosure-body"><label>参考模式<select id="reference-mode" name="mode"><option value="auto">自动：按对应文字选择</option><option value="icl">完整参考（需要对应文字）</option><option value="x_vector_only">仅说话人特征（无需文字）</option></select></label><p class="hint">仅说话人特征不含文字上下文，克隆效果请试听确认。</p></div></details><button type="submit">添加音色</button>
+        <audio id="sample-preview" controls hidden></audio><label>音色名称<input id="voice-name" name="name" required maxlength="100" placeholder="选择录音后自动填写，可修改"></label><label>音色 ID<span class="optional-label">可选</span><input id="voice-id" name="voice_id" maxlength="40" spellcheck="false" autocapitalize="none" placeholder="例如：narrator；留空按名称生成" aria-describedby="voice-id-hint"></label><p class="hint" id="voice-id-hint">用于 API 和导演稿。支持小写字母、汉字、数字和连字符；自动生成时重名会追加序号。</p><label>录音对应文字<span class="optional-label">可选</span><textarea id="ref-text" name="ref_text" class="short" maxlength="4000" placeholder="填写录音中实际说出的文字，使用完整参考。留空则仅提取说话人特征。"></textarea></label><details class="disclosure upload-options"><summary>参考方式<span class="muted">默认自动选择</span></summary><div class="disclosure-body"><label>参考模式<select id="reference-mode" name="mode"><option value="auto">自动：按对应文字选择</option><option value="icl">完整参考（需要对应文字）</option><option value="x_vector_only">仅说话人特征（无需文字）</option></select></label><p class="hint">仅说话人特征不含文字上下文，克隆效果请试听确认。</p></div></details><button type="submit">添加音色</button>
       </form></article></div>
     </div><dialog class="edit-card" id="edit-voice-card"><div class="card-header"><h2>编辑参考文字</h2><button id="close-edit" class="link-button">关闭</button></div><div class="card-body"><p id="edit-voice-name"></p><textarea id="edit-ref-text" class="short" maxlength="4000" aria-label="编辑参考文字"></textarea><select id="edit-reference-mode" aria-label="参考模式"><option value="icl">完整参考</option><option value="x_vector_only">仅说话人特征</option></select><div class="actions"><button id="save-ref-text">保存更改</button></div></div></dialog></section>
     <section id="view-jobs" class="view" hidden><article class="card"><div class="card-header"><div class="section-heading"><svg class="icon"><use href="#i-folder"/></svg><h2>任务记录</h2><span id="jobs-count" class="quiet-tag">—</span></div><button class="link-button" id="refresh-jobs">刷新</button></div><div class="table-scroll"><table><thead><tr><th>任务</th><th>类型</th><th>状态</th><th>进度</th><th>提交时间</th><th></th></tr></thead><tbody id="job-list"></tbody></table></div></article></section>
+    <section id="view-mcp" class="view" hidden>
+      <div class="grid mcp-panels">
+        <div class="mcp-column">
+          <article class="card">
+            <div class="card-header"><div class="section-heading"><svg class="icon"><use href="#i-mcp"/></svg><h2>连接信息</h2></div><span id="mcp-state" class="badge">待检查</span></div>
+            <div class="card-body">
+              <label for="mcp-endpoint">MCP 服务地址</label>
+              <div class="mcp-copy-row"><input id="mcp-endpoint" readonly spellcheck="false"><button class="secondary" id="copy-mcp-endpoint">复制地址</button></div>
+              <div class="mcp-facts"><span>传输方式<strong>Streamable HTTP</strong></span><span>接口鉴权<strong id="mcp-auth-state">读取中</strong></span></div>
+              <p class="hint" id="mcp-auth-help">正在读取服务鉴权设置。</p>
+              <p class="hint">地址使用当前浏览器的访问入口。远端智能体需使用它能访问的地址，或先建立 SSH 转发。</p>
+              <div class="mcp-check-row"><button id="check-mcp"><svg class="icon"><use href="#i-refresh"/></svg>检查连接</button><span class="hint">只发现工具，不生成音频</span></div>
+              <p id="mcp-check-result" class="mcp-check-result" role="status" aria-live="polite">进入此页会自动检查连接。</p>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card-header"><h2>可用工具</h2><span id="mcp-tool-count" class="quiet-tag">等待发现</span></div>
+            <p id="mcp-tools-empty" class="mcp-empty">连接成功后显示服务实际提供的工具与参数。</p>
+            <div id="mcp-tools" class="mcp-tool-list"></div>
+          </article>
+        </div>
+        <div class="mcp-column">
+          <article class="card">
+            <div class="card-header"><h2>客户端配置</h2><button class="link-button" id="copy-mcp-config">复制 JSON</button></div>
+            <div class="card-body"><p class="hint">适用于支持 <code>mcpServers</code> JSON 的客户端。其他客户端按左侧的地址、传输方式和鉴权设置填写。</p><p class="hint" id="mcp-config-help">示例不会包含你填写的 API Token。</p></div>
+            <pre id="mcp-config" tabindex="0" aria-label="MCP 客户端配置示例"></pre>
+          </article>
+          <article class="card">
+            <div class="card-header"><h2>从音色到配音</h2><span class="muted">与工作台共用任务</span></div>
+            <div class="card-body">
+              <ol class="mcp-workflow">
+                <li><strong>选择音色</strong><span>调用 <code>list_voices</code> 获取实际音色 ID；新增录音请使用音色管理或 REST 上传。</span></li>
+                <li><strong>先预检，再提交</strong><span>在工作台或 REST 预检文稿，通过后使用 <code>submit_narration</code> 提交一次。</span></li>
+                <li><strong>等待完成并下载</strong><span>用 <code>get_job</code> 查询同一任务，完成后按返回链接下载音频。下载使用相同鉴权。</span></li>
+              </ol>
+              <p class="hint">导演稿提交时保留 <code>request.narration_director</code> 与 <code>voice_profile</code>。当前 MCP 不提供预检和录音上传工具；不支持的表达要求需先确认处理方式。</p>
+              <details class="disclosure"><summary>查看配音提交示例<span class="muted">tools/call 参数</span></summary><pre id="mcp-call-example" tabindex="0"></pre></details>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
     <section id="view-runtime" class="view" hidden><div id="runtime-overview" class="runtime-grid"></div><div class="grid runtime-panels"><article class="card"><div class="card-header"><h2>模型与控制能力</h2><span class="muted">按当前后端报告</span></div><div id="capabilities" class="card-body"></div></article><article class="card"><div class="card-header"><h2>设备与诊断</h2></div><div class="card-body"><div id="device-detail"></div><details class="disclosure" id="diagnostic-disclosure"><summary>完整运行信息<span class="muted">JSON</span></summary><pre id="runtime-detail"></pre></details></div></article></div></section>
     <footer><span>原文与读法分别保留</span><i>·</i><span>停顿为额外静音</span><i>·</i><span>最终听感请试听确认</span></footer>
   </main>

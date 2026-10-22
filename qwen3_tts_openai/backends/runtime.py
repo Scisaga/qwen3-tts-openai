@@ -4,9 +4,9 @@ import multiprocessing
 import threading
 import time
 
-from config import Settings
-from errors import ServiceError
-from backends.qwen import capabilities
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.backends.qwen import capabilities
 
 
 def configure_model_threads(settings, torch):
@@ -20,7 +20,7 @@ def model_process(connection, values):
     settings.configure_process()
     import torch
     configure_model_threads(settings, torch)
-    from backends.qwen import OfficialQwen
+    from qwen3_tts_openai.backends.qwen import OfficialQwen
     adapter = OfficialQwen(settings)
     while True:
         try:

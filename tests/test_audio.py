@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from audio_processing import AudioProcessor
-from errors import ServiceError
+from qwen3_tts_openai.audio_processing import AudioProcessor
+from qwen3_tts_openai.errors import ServiceError
 
 
 def dominant_frequency(path):

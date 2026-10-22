@@ -12,10 +12,12 @@
 
 ## 代码结构
 
+Python 应用代码统一位于 `qwen3_tts_openai/`，以下 Python 模块路径均相对此目录。启动入口为仓库根目录下的 `python -m qwen3_tts_openai`，由 `__main__.py` 启动单进程 HTTP 服务；依赖输入与锁文件统一位于根目录的 `requirements/`。
+
 | 模块 | 职责 |
 | --- | --- |
-| `app.py`、`server.py` | HTTP 接口、生命周期和启动入口。 |
-| `static/` | 中文工作台、音色管理、任务记录与运行状态页面。 |
+| `app.py`、`__main__.py` | HTTP 接口、生命周期和模块启动入口。 |
+| 仓库根目录的 `static/` | 中文工作台、音色管理、任务与产物、MCP 接入、运行状态五个页面。 |
 | `mcp_server.py` | HTTP MCP 工具与资源。 |
 | `contracts.py`、`director_compiler.py` | 请求协议、文稿编译、控制校验和降级报告。 |
 | `synthesis_service.py` | 音色准备、配音执行与产物编排。 |
@@ -23,6 +25,10 @@
 | `audio_processing.py` | 音频校验、数值后处理、拼接与编码。 |
 | `voice_store.py`、`job_store.py`、`storage.py` | 音色版本、持久化队列、文件与缓存。 |
 | `asr_client.py`、`reference_store.py` | 可选 ASR 调用、短录音转换、草稿过期与重复提交保护。 |
+
+`app.py` 从应用包所在的仓库根目录定位 `static/` 与 `examples/`。模型、数据库、参考音色和生成产物仍由 `HF_HOME` 与 `DATA_DIR` 决定，目录整理不迁移运行数据。Docker 与原生 systemd 共用模块入口，参见 `deploy/qwen3-tts-openai.service.example`。
+
+五个页面分别使用 `/studio`、`/voices`、`/jobs`、`/integrations/mcp` 和 `/runtime`。服务端返回同一个工作台文档，前端使用 History API 恢复文稿模式、音色页签与任务详情；刷新和新标签页直接访问均由这些服务端路由承接。音色 ID badge 复制纯 ID，名称与 ID 分开存储。
 
 ## 模型适配
 
@@ -34,7 +40,7 @@
 
 默认注意力实现为 SDPA，生成调用使用 `torch.inference_mode()`。模型子进程在初始化模型前设置 `TORCH_NUM_THREADS` 和 `TORCH_NUM_INTEROP_THREADS`，默认各为 1；它们不改变持久化队列的串行执行方式。健康信息包含配置的线程预算和加载模型后实际使用的线程数，原始音频缓存的模型身份继续包含注意力实现。
 
-`CUDA_GRAPH_ENABLED=1` 启用可选的子模型图回放路径：`backends/cuda_graph.py` 使用 Transformers 的 `StaticCache`，为 15 步残余编码预测预分配固定 KV、位置、因果掩码和输入输出缓冲。每帧回放前在图内重置 KV，外部输入复制到固定缓冲，输出复制后交给官方 Talker；文本、ICL、说话人条件、外层解码与终止判断仍走官方 SDK。只有当前模型实例的 predictor 调用在单次生成范围内被临时替换，退出或异常时恢复，不修改安装包或全局类。
+`CUDA_GRAPH_ENABLED=1` 启用可选的子模型图回放路径：`qwen3_tts_openai/backends/cuda_graph.py` 使用 Transformers 的 `StaticCache`，为 15 步残余编码预测预分配固定 KV、位置、因果掩码和输入输出缓冲。每帧回放前在图内重置 KV，外部输入复制到固定缓冲，输出复制后交给官方 Talker；文本、ICL、说话人条件、外层解码与终止判断仍走官方 SDK。只有当前模型实例的 predictor 调用在单次生成范围内被临时替换，退出或异常时恢复，不修改安装包或全局类。
 
 图按采样开关、top-k、top-p 和温度配置，最多保留一套；参数变化会重新捕获。采样使用与固定 SDK 相同的 FP32 logits 和 Transformers warper 顺序，捕获与预热保存并恢复随机数状态。图回放可能改变 GPU 随机数的消耗方式，种子保证同一路径重复生成可复现，不保证与官方路径逐样本一致。图版本写入模型身份，避免跨执行路径复用条件或原始音频缓存。捕获失败会终止服务拥有的模型进程并报告错误；不自动更换执行路径、模型或设备。
 
@@ -42,7 +48,7 @@
 
 服务通过 CUDA 执行单卡 FP16 推理，设备的计算架构需要与 PyTorch/CUDA 构建匹配，并有足够的可用显存。当前仓库的验证设备为 RTX 2080 Ti（`sm_75`）。
 
-当前实现仍有设备绑定：`backends/qwen.py` 的 `verify_device()` 检查 RTX 2080 Ti 名称与 `sm_75`，运行镜像和探测脚本也检查 PyTorch 构建是否包含 `sm_75`。因此，其他 NVIDIA GPU 目前会被这项运行检查拒绝；不能将本仓库在该卡上的验证结果直接视为其他型号已通过验收。
+当前实现仍有设备绑定：`qwen3_tts_openai/backends/qwen.py` 的 `verify_device()` 检查 RTX 2080 Ti 名称与 `sm_75`，运行镜像和探测脚本也检查 PyTorch 构建是否包含 `sm_75`。因此，其他 NVIDIA GPU 目前会被这项运行检查拒绝；不能将本仓库在该卡上的验证结果直接视为其他型号已通过验收。
 
 适配其他型号时，需要同步调整运行时设备检查、PyTorch/CUDA 构建与探测逻辑，并在目标卡上验证模型加载、参考音色提取和实际生成。
 

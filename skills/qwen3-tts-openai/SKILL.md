@@ -7,6 +7,8 @@ description: Install, deploy, connect, and troubleshoot the self-hosted qwen3-tt
 
 Use [Scisaga/qwen3-tts-openai](https://github.com/Scisaga/qwen3-tts-openai) and its existing voice library and durable jobs. The bundled Python 3.10+ helper uses only the standard library; the inference service has its own Docker/Python dependencies.
 
+The application code lives in `qwen3_tts_openai/`; native services start with `python -m qwen3_tts_openai` from the checkout root. Dependency inputs and locks live in `requirements/`. The portable Skill helper remains at `scripts/tts_skill.py` relative to this Skill, separate from the service entry point.
+
 - For Skill installation, local/SSH deployment, or MCP registration, read [references/setup.md](references/setup.md). Install the whole Skill directory, then use the installed helper, so subsequent work does not depend on a temporary checkout.
 - For voice registration, plain text/director/SSML narration, polling, and downloads, read [references/usage.md](references/usage.md). Use connected MCP tools when available; the helper provides REST access without an MCP client.
 

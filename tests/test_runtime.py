@@ -7,10 +7,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from backends.runtime import ModelRuntime, model_process
-from config import Settings
-from errors import ServiceError
-from backends.qwen import OfficialQwen
+from qwen3_tts_openai.backends.runtime import ModelRuntime, model_process
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.backends.qwen import OfficialQwen
 
 
 def sleeper(connection):
@@ -122,7 +122,7 @@ def test_model_process_sets_thread_budget_before_adapter_initialization(settings
             assert configured.torch_num_threads == 2
             state["initialized"] = True
 
-    monkeypatch.setattr("backends.qwen.OfficialQwen", Adapter)
+    monkeypatch.setattr("qwen3_tts_openai.backends.qwen.OfficialQwen", Adapter)
     connection = SimpleNamespace(recv=lambda: ("stop", {}), close=lambda: state.update(closed=True))
     configured = settings.model_copy(update={"torch_num_threads": 2, "torch_num_interop_threads": 1})
     model_process(connection, configured.model_dump())

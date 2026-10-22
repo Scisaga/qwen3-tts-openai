@@ -9,12 +9,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from audio_processing import AudioProcessor
-from backends.runtime import ModelRuntime
-from config import Settings
-from contracts import GenerationOptions
-from storage import Database, file_hash, write_json
-from voice_store import VoiceStore
+from qwen3_tts_openai.audio_processing import AudioProcessor
+from qwen3_tts_openai.backends.runtime import ModelRuntime
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.contracts import GenerationOptions
+from qwen3_tts_openai.storage import Database, file_hash, write_json
+from qwen3_tts_openai.voice_store import VoiceStore
 
 
 def unit(voice, text, instruction=""):

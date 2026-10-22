@@ -18,9 +18,9 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from config import Settings
-from errors import ServiceError
-from storage import digest, file_hash, write_json
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.storage import digest, file_hash, write_json
 
 ADAPTER_VERSION = "official-qwen-0.1.1-binding-v1"
 PRESETS = ("vivian", "serena", "uncle_fu", "dylan", "eric", "ryan", "aiden", "ono_anna", "sohee")
@@ -112,7 +112,7 @@ class OfficialQwen:
                 raise ServiceError("model_cache_missing", "Snapshot contains no safetensors weights; pre-download the complete pinned model", 503)
             graph_identity = {}
             if self.settings.cuda_graph_enabled:
-                from backends.cuda_graph import CUDA_GRAPH_VERSION
+                from qwen3_tts_openai.backends.cuda_graph import CUDA_GRAPH_VERSION
                 graph_identity = {"cuda_graph": CUDA_GRAPH_VERSION}
             self.snapshots[key] = (path, {"model_id": model_id, "requested_revision": revision, "resolved_revision": resolved, "weights": weights, "dtype": self.settings.dtype, "attention": self.settings.attn_implementation, "adapter_version": ADAPTER_VERSION, **graph_identity})
         return self.snapshots[key]
@@ -142,8 +142,8 @@ class OfficialQwen:
             raise ServiceError("model_type_mismatch", f"Backend requires {expected}, checkpoint is {model.model.tts_model_type}", 503)
         predictor_graph = None
         if self.settings.cuda_graph_enabled:
-            from backends.cuda_graph import PredictorCudaGraph
-            from contracts import GenerationOptions
+            from qwen3_tts_openai.backends.cuda_graph import PredictorCudaGraph
+            from qwen3_tts_openai.contracts import GenerationOptions
             predictor_graph = PredictorCudaGraph(model.model.talker.code_predictor)
             predictor_graph.configure(GenerationOptions().model_dump())
         self.model, self.loaded_kind, self.predictor_graph = model, kind, predictor_graph

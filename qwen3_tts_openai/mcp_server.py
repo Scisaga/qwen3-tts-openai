@@ -4,7 +4,7 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from contracts import NarrationRequest
+from qwen3_tts_openai.contracts import NarrationRequest
 
 
 def build_mcp(service):

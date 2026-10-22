@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from config import Settings
-from storage import write_json
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.storage import write_json
 
 
 def probe():
@@ -33,7 +33,7 @@ def probe():
         result["cuda_available"] = torch.cuda.is_available()
         result["official_import_verified"] = Qwen3TTSModel.__name__ == "Qwen3TTSModel"
         if result["cuda_available"]:
-            from backends.qwen import OfficialQwen
+            from qwen3_tts_openai.backends.qwen import OfficialQwen
             backend = OfficialQwen(settings)
             backend.verify_device()
             result["hardware"] = backend.hardware

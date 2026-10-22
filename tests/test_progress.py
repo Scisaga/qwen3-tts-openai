@@ -7,13 +7,13 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from backends.runtime import ModelRuntime
-from contracts import NarrationRequest
-from errors import ServiceError
-from job_progress import NarrationProgress
-from job_store import JobStore
-from storage import Database
-from synthesis_service import SynthesisService
+from qwen3_tts_openai.backends.runtime import ModelRuntime
+from qwen3_tts_openai.contracts import NarrationRequest
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.job_progress import NarrationProgress
+from qwen3_tts_openai.job_store import JobStore
+from qwen3_tts_openai.storage import Database
+from qwen3_tts_openai.synthesis_service import SynthesisService
 from tests.conftest import ControlledBackend, wait_done
 
 

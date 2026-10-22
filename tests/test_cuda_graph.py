@@ -1,10 +1,10 @@
 import pytest
 
-from backends.cuda_graph import PredictorCudaGraph, PredictorSampling
-from backends.qwen import OfficialQwen
-from config import Settings
-from errors import ServiceError
-from storage import digest
+from qwen3_tts_openai.backends.cuda_graph import PredictorCudaGraph, PredictorSampling
+from qwen3_tts_openai.backends.qwen import OfficialQwen
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.storage import digest
 
 
 @pytest.mark.parametrize("values", [

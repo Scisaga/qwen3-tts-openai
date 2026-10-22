@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/brand/banner.svg" width="100%" alt="Qwen3-TTS OpenAI：用参考音色，为文字配音。参考录音与文稿生成可试听、下载的配音，支持本地部署和 OpenAI 兼容接入。">
+  <img src="docs/images/brand/banner.svg" width="100%" alt="Qwen3-TTS OpenAI：参考音色克隆与导演稿编排，逐页、逐段控制语速、音高和停顿，生成可试听、下载的本地配音。">
 </p>
 
 <h1 align="center">Qwen3-TTS OpenAI</h1>
@@ -31,6 +31,8 @@
   <a href="#一键安装提示词">一键安装</a> ·
   <a href="#界面预览">界面预览</a> ·
   <a href="#主要功能">主要功能</a> ·
+  <a href="#导演稿把配音要求变成执行计划">导演稿</a> ·
+  <a href="#叙事-ppt-与视频的音色选择">叙事音色</a> ·
   <a href="#安装-qwen3-tts-openai-skill">Skill 接入</a> ·
   <a href="#快速开始">手动部署</a> ·
   <a href="#接入现有应用">API 与 MCP</a> ·
@@ -56,6 +58,7 @@ Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU
 并核对当前构建与目标 GPU 的兼容性，具体以 Skill 部署指南和实际运行检查为准。
 多卡目标不明确时先让我选择，环境不兼容时报告缺失条件；保留现有配置、模型和数据。
 完成后运行 doctor --mcp，按当前客户端支持的方式接入 MCP，验证实际工具发现。
+服务源码位于 qwen3_tts_openai/，依赖文件位于 requirements/；原生启动使用 python -m qwen3_tts_openai。
 告诉我 Skill 安装位置、工作台入口、服务就绪情况，以及当前会话是否需要重新加载。
 ```
 
@@ -65,13 +68,13 @@ Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU
 
 ### 配音工作台
 
-左侧编辑文稿、选择音色；右侧查看分段、控制参数和执行计划。点击「生成配音」会自动预检，也可以先单独检查文稿。
+左侧选择音色并编辑文本、导演稿或 SSML；右侧查看逐页分段、控制参数、预检问题和执行计划。点击「生成配音」会自动预检，也可以先单独检查文稿。
 
 ![配音工作台：文稿编辑与执行计划](docs/images/workbench.png)
 
 | 音色管理 | 生成与试听 |
 | --- | --- |
-| 在「快速复刻 / 添加音色」两个并列 Tab 中选择添加方式，管理、试听并选择音色。 | 查看任务进度，试听结果，下载 MP3 或 WAV。 |
+| ID badge 在前、名称在后，点击整个 badge 即可复制；通过「快速复刻 / 添加音色」创建、试听和选择音色。 | 查看任务进度，切换整稿或逐页试听，下载 MP3、WAV、时间轴和执行记录。 |
 | ![音色管理界面](docs/images/voices.png) | ![配音结果与音频下载](docs/images/audio-result.png) |
 
 ### 快速复刻
@@ -84,13 +87,33 @@ Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU
 
 ![生成中的进度与音频长度（受控演示）](docs/images/progress.png)
 
-*截图使用当前界面、演示文稿和受控测试音频，设备与任务标识已隐藏。截图用于展示操作流程，音色效果请在真实模型中试听确认。仓库不附带参考录音，首次使用请添加自己的音色。*
+| MCP 接入 | 运行状态 |
+| --- | --- |
+| 复制服务地址与客户端配置，检查连接，查看服务实际暴露的工具及参数。 | 查看模型、音频工具与控制能力；区分数值控制、表达指令和逐词时间定位。 |
+| ![MCP 接入：连接检查、配置复制与工具发现](docs/images/mcp.png) | ![运行状态：模型与控制能力说明](docs/images/runtime.png) |
+
+<details>
+<summary>任务与产物：查看生成历史、进度和结果</summary>
+
+![任务与产物：配音任务与结果入口](docs/images/jobs.png)
+
+</details>
+
+<details>
+<summary>手机预览：导航与音色 ID 布局</summary>
+
+<img src="docs/images/mobile.png" width="390" alt="手机界面：五个导航入口与同一行的音色 ID badge 和名称">
+
+</details>
+
+*截图使用当前界面、演示文稿和隔离测试后端，音频为受控测试音调，任务标识已隐藏。截图展示操作流程；音色相似度、读法与听感请在真实模型中试听确认。仓库不附带参考录音，首次使用请添加自己的音色。*
 
 ## 主要功能
 
 | 功能 | 能做什么 |
 | --- | --- |
 | 参考音色克隆 | 上传 WAV，保存为可重复使用的音色；支持完整参考与仅说话人特征两种方式。 |
+| 可读音色 ID | 添加或快速复刻时自定义简短 ID；列表先显示可点击复制的 ID badge，再显示名称，可直接用于 API、MCP 和导演稿。 |
 | 快速复刻（可选） | 在网页录音或上传短录音，自动识别对应文字，确认后保存音色并用新句子试听。 |
 | 内网网页录音（可选） | 提供独立 HTTPS 入口、HTTP 页面跳转按钮和公共证书下载；访问电脑信任证书后可使用麦克风。 |
 | 多种文稿入口 | 直接粘贴普通文字，或使用导演稿 JSON、SSML 编排段落与页面。 |
@@ -99,6 +122,9 @@ Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU
 | 试听与导出 | 支持整稿、逐页音频，以及局部试生成；导出 MP3、WAV、时间轴、执行记录和输入原文。 |
 | 任务与缓存 | 查看队列、进度和生成历史，取消任务；复用已验证的生成与后处理缓存。 |
 | 应用接入 | 提供 OpenAI 兼容语音接口子集、异步 REST API 与 HTTP MCP。 |
+| MCP 接入页 | 检查真实连接、复制地址和配置，查看工具目录与 JSON Schema。 |
+| 页面与导航 | 五个页面使用独立 URL，支持刷新、收藏和前进后退；桌面与手机自适应布局。 |
+| 运行状态 | 查看就绪状态、设备及音频工具，说明当前后端支持的控制方式。 |
 | Agent Skill | 为 Codex / Claude Code 安装 Skill，引导本机或 SSH 部署、接入服务、选择音色并生成和下载配音。 |
 | 自托管 | 本地模型与文件存储，SQLite 持久化；网页无需单独构建，模型可预下载后离线运行。 |
 
@@ -109,6 +135,20 @@ Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU
 3. **生成配音**：点击生成，工作台自动预检并提交任务；若存在问题，先修正文稿或确认计划中列出的降级项。
 4. **试听与下载**：确认读法和段落衔接，下载 MP3 或 WAV。多页文稿还可以逐页试听与导出。
 
+各页面都可以通过独立地址打开、刷新、收藏或在新标签页使用：
+
+| 页面 | 路径 | 主要操作 |
+| --- | --- | --- |
+| 配音工作台 | `/studio` | 文本、导演稿、SSML，预检和生成，整稿与逐页试听。 |
+| 音色管理 | `/voices` | 查看与复制 ID、回听参考录音、选择音色、快速复刻和上传。 |
+| 任务与产物 | `/jobs` | 查看任务状态、进度和历史，打开已有任务结果。 |
+| MCP 接入 | `/integrations/mcp` | 检查连接、复制配置、查看真实工具与参数。 |
+| 运行状态 | `/runtime` | 查看模型就绪状态、设备、音频工具和能力说明。 |
+
+URL 同时保留页面内状态：`/studio?mode=director` 或 `?mode=ssml` 打开文稿模式，`/voices?tab=quick` 或 `?tab=upload` 打开音色添加方式，`/studio?panel=task&job=<job_id>` 直达已有任务。浏览器前进后退会恢复对应页面，切走录音页会停止录音并释放麦克风。
+
+音色行将小圆角的 `id | narrator` badge 与名称放在同一行，点击任一分区都只复制 ID，支持键盘激活。桌面使用适中的字号，手机保持紧凑字号与适配布局。
+
 ## 导演稿：把配音要求变成执行计划
 
 导演稿将正文与配音控制放在同一份 JSON 中。通过 `pages`、`segments` 编排页面与段落，为片段设置 `rate`、`pitch`、`pause_after_ms` 和可选 `voice_id`，适合课程、演示文稿和需要精细控制的长篇旁白。
@@ -118,6 +158,21 @@ Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU
 3. **生成与复核**：支持指定页面、片段的局部试生成；完成后试听整稿或逐页音频，导出 MP3、WAV、时间轴和执行记录。
 
 语速、音高与停顿以明确的数值控制执行；导演稿中的意图和表达描述不等于模型已实现相应听感。普通文字和 SSML 仍可作为独立入口使用。
+
+## 叙事 PPT 与视频的音色选择
+
+叙事型演示文稿可以先确定一条主讲声线，再用导演稿编排逐页语速和停顿。下面给出便于记忆的 ID 命名与选声建议，可在 [微软官方音色库](https://speech.microsoft.com/portal/voicegallery) 比较参考声线：
+
+| 建议 ID | 参考音色 | 建议用途 |
+| --- | --- | --- |
+| `yunxi` | 云希 · 自然叙事男声 | 故事、科普和日常 PPT 主讲。 |
+| `yunjian` | 云健 · 纪录旁白男声 | 历史、人文和纪录片式叙事。 |
+| `yunyang` | 云扬 · 专业讲解男声 | 商务、技术与培训内容。 |
+| `xiaohan` | 晓涵 · 温柔叙事女声 | 教育、生活和人文故事。 |
+
+这些是参考声线与命名建议，需在自己的服务中注册后才可使用；以 `GET /v1/voices` 或音色管理页的实际列表为准。录音由使用者自行提供并管理，配音由本地 Qwen3-TTS 克隆生成。参考录音的风格不代表 Base 后端可以执行 Azure 情绪标签。
+
+选择时让候选音色朗读同一份叙事稿，对比读法、语速、长句与段落衔接。视频制作可使用导演稿生成的逐页 MP3/WAV 和片段时间轴；逐词字幕时间需要另行对齐。
 
 ## 相关技能仓库
 
@@ -186,7 +241,7 @@ bash scripts/start_https.sh
 
 配置后，HTTP 页按钮显示「打开录音页面」，点击可直接进入 HTTPS 的快速复刻 Tab；HTTPS 页提供「开始录音」。HTTP 工作台和原有 API 地址继续可用，ASR 仍由 TTS 后端通过内网 HTTP 连接。启用接口鉴权时，需要在 HTTPS 页面重新填写 API Token。
 
-已有受信任域名与 HTTPS 代理时，设置 `HTTPS_PUBLIC_URL` 并保持 `HTTPS_LOCAL_CA=0` 即可。也可以在原生部署中同时配置以下两个文件，让 `server.py` 在当前 `PORT` 直接使用 HTTPS：
+已有受信任域名与 HTTPS 代理时，设置 `HTTPS_PUBLIC_URL` 并保持 `HTTPS_LOCAL_CA=0` 即可。也可以在原生部署中同时配置以下两个文件，让 `python -m qwen3_tts_openai` 在当前 `PORT` 直接使用 HTTPS：
 
 ```dotenv
 TLS_CERTFILE=/path/to/server.crt
@@ -271,6 +326,20 @@ docker compose logs -f qwen3_tts
 
 需要接口鉴权时，可设置 `API_TOKEN`，调用 `/v1/*` 和 `/mcp/` 时携带 `Authorization: Bearer <token>`。更多可调选项见 [.env.example](.env.example)。
 
+### 原生启动
+
+在已安装 NVIDIA 驱动、FFmpeg、FFprobe 和 Rubber Band CLI 的 Linux 主机上，也可以从仓库根目录运行同一个应用入口。先按前文配置 `.env`，选择目标 GPU 并确认构建兼容性：
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/pip install --require-hashes -r requirements/requirements-gpu.lock
+.venv/bin/python scripts/check_toolchain.py
+.venv/bin/python scripts/download_models.py --http --online
+.venv/bin/python -m qwen3_tts_openai
+```
+
+systemd 示例见 [deploy/qwen3-tts-openai.service.example](deploy/qwen3-tts-openai.service.example)。将用户、仓库和虚拟环境路径改为自己的值，`WorkingDirectory` 指向仓库根目录，`ExecStart` 使用虚拟环境中的 Python 加 `-m qwen3_tts_openai`。
+
 ### 推理速度
 
 默认使用 SDPA 注意力计算，并在模型进程中启用纯推理模式。CPU 计算线程配置如下；已有 `.env` 的部署需更新这些字段并重启服务：
@@ -305,9 +374,12 @@ CUDA_GRAPH_ENABLED=1
 curl --fail-with-body http://127.0.0.1:8000/v1/voices \
   -F file=@reference.wav \
   -F 'name=我的讲解音色' \
+  -F voice_id=narrator \
   -F 'ref_text=这里填写录音中实际说出的文字。' \
   -F mode=icl
 ```
+
+`voice_id` 可自定义为 `narrator`、`xiaoxiao` 等易读名称，支持 1–40 个小写字母、汉字或数字，并可用单个连字符分隔。留空时按音色名称自动生成，重名追加 `-2`、`-3`；自定义 ID 重复则返回 409。音色库以 `id | narrator` 标签显示，点击整个标签即可复制，用于 API、MCP 或导演稿。
 
 上传返回 `voice_id` 与参考条件提取任务。等待音色就绪后，把下例的 `<voice_id>` 替换为返回的 ID：
 
@@ -321,6 +393,8 @@ curl --fail-with-body http://127.0.0.1:8000/v1/audio/speech \
 该接口兼容 OpenAI 语音请求结构的子集，支持 MP3、WAV 和语速参数。`voice` 使用本地注册音色 ID，不对应 OpenAI 的预置声音名称；当前不提供流式输出。长稿建议使用异步配音接口。
 
 ### REST 与 MCP
+
+工作台左侧的「MCP 接入」提供服务地址与配置复制、鉴权说明，以及服务实际工具和参数的发现。点击「检查连接」会完成 MCP 初始化并读取工具目录，不提交配音任务。
 
 | 入口 | 用途 |
 | --- | --- |
@@ -340,10 +414,31 @@ curl --fail-with-body http://127.0.0.1:8000/v1/audio/speech \
 ## 当前能力范围
 
 - 默认使用 Qwen3-TTS Base 进行参考音色克隆。语速、音高和增益由音频后处理完成；默认 Base 不支持自由表达指令，组合表达后端属于需要显式启用的实验功能。
-- 长稿按自然句或短段生成，不提供字级对齐。音色相似度、术语读法和段落衔接请以实际试听为准。
+- 长稿按自然句或短段生成，时间轴按生成片段记录，不提供每个词的精确起止时间或逐词时长控制。音色相似度、术语读法和段落衔接请以实际试听为准。
 - SSML 支持已实现的标签与数值控制，不是完整的 Azure SSML 实现；未支持的控制会在预检中报告。
 
 ## 开源与贡献
+
+### 项目结构
+
+```text
+qwen3_tts_openai/          Python 应用包
+  __main__.py             python -m qwen3_tts_openai 启动入口
+  app.py                  HTTP 接口、页面与生命周期
+  synthesis_service.py    配音、音色准备和任务编排
+  backends/               模型适配与独立推理进程
+  ...                     导演稿编译、音频处理、配置与存储
+requirements/             服务、GPU、开发依赖的 .in 与 .lock
+static/                   中文工作台，无需单独构建
+tests/                    接口、任务、音频与运行时测试
+scripts/                  模型下载、诊断、验证和界面截图
+deploy/                   HTTPS 代理与 systemd 示例
+skills/                   可独立安装的 Agent Skill
+docs/                     架构、验证、部署说明与界面图片
+examples/                 导演稿、音色配置和 SSML 示例
+```
+
+原生开发的依赖安装、测试、浏览器检查与截图更新命令见 [开发与验证](docs/testing.md)。`models/`、`data/`、本地配置和测试产物为部署数据，继续保存在各自的忽略目录中。
 
 欢迎通过 Issue 反馈使用问题，或提交 Pull Request 改进界面、输入协议和模型适配。反馈问题时请提供复现步骤、错误类型与经过脱敏的日志。
 

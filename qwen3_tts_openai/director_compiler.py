@@ -12,10 +12,10 @@ from typing import Callable
 from defusedxml import ElementTree
 from defusedxml.common import DefusedXmlException
 
-from config import Settings
-from contracts import NarrationRequest
-from errors import ServiceError
-from storage import digest
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.contracts import NarrationRequest
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.storage import digest
 
 COMPILER_VERSION = "director-v1"
 SSML_NS = "http://www.w3.org/2001/10/synthesis"

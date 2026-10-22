@@ -8,9 +8,9 @@ import time
 import uuid
 from pathlib import Path
 
-from audio_processing import AudioProcessor
-from errors import ServiceError
-from storage import digest, file_hash, write_json
+from qwen3_tts_openai.audio_processing import AudioProcessor
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.storage import digest, file_hash, write_json
 
 REFERENCE_ID = re.compile(r"reference_[0-9a-f]{32}\Z")
 
@@ -110,12 +110,13 @@ class ReferenceStore:
             with self._lock:
                 self._busy.discard(ident)
 
-    def register(self, ident, name, ref_text, register):
+    def register(self, ident, name, ref_text, register, voice_id=None):
         if not ref_text.strip():
             raise ServiceError(
                 "invalid_reference_mode", "快速复刻需要与录音一致的文字，请确认识别结果或手动填写。", 422
             )
-        key = digest({"name": name, "ref_text": ref_text, "mode": "icl"})
+        voice_id = (voice_id or "").strip() or None
+        key = digest({"name": name, "ref_text": ref_text, "mode": "icl", "voice_id": voice_id})
         with self._lock:
             doc = self._read(ident)
             if ident in self._busy:
@@ -128,7 +129,7 @@ class ReferenceStore:
             if not path.is_file() or file_hash(path) != doc["reference"]["processed_sha256"]:
                 raise ServiceError("reference_corrupt", "录音草稿已损坏，请重新录制或上传。", 422)
             try:
-                voice = register(path, name, ref_text, "icl")
+                voice = register(path, name, ref_text, "icl", voice_id)
             except ServiceError as exc:
                 voice = (exc.details or {}).get("voice")
                 if not voice:

@@ -6,8 +6,8 @@ from pathlib import Path
 
 import httpx
 
-from config import Settings
-from errors import ServiceError
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.errors import ServiceError
 
 ASR_LANGUAGES = {"zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"}
 

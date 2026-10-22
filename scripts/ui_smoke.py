@@ -23,8 +23,60 @@ def main(args):
         expect(page.locator("#tab-text")).to_have_text("文本配音")
         expect(page.locator("#plan-empty")).to_be_visible()
         assert page.locator(".brand strong").evaluate("node => node.getBoundingClientRect().height < parseFloat(getComputedStyle(node).fontSize) * 1.5")
+        mcp_requests=[]
+        page.on("request",lambda request:mcp_requests.append(request.post_data_json) if request.url.endswith("/mcp/") and request.method=="POST" else None)
+        page.click('[data-view="mcp"]')
+        expect(page.locator("#mcp-state")).to_have_text("未连接")
+        expect(page.locator("#mcp-check-result")).to_contain_text("API Token")
         page.fill("#api-token","ui-test-token")
         page.locator("#api-token").blur()
+        expect(page.locator("#mcp-state")).to_have_text("已连接")
+        expect(page.locator("#mcp-tool-count")).to_have_text("3 个工具")
+        assert page.input_value("#mcp-endpoint")==args.url.rstrip("/")+"/mcp/"
+        names=page.locator(".mcp-tool-heading code").all_text_contents()
+        assert set(names)=={"list_voices","submit_narration","get_job"}
+        submit_tool=page.locator(".mcp-tool").filter(has=page.locator("code",has_text="submit_narration"))
+        submit_tool.locator("summary").click()
+        schema=json.loads(submit_tool.locator("pre").inner_text())
+        assert schema["properties"]["request"]["type"]=="object"
+        submit_tool.locator("summary").click()
+        config=json.loads(page.locator("#mcp-config").inner_text())
+        server=config["mcpServers"]["qwen3-tts-openai"]
+        assert server["url"]==args.url.rstrip("/")+"/mcp/"
+        assert server["headers"]["Authorization"]=="Bearer <API_TOKEN>"
+        assert "ui-test-token" not in page.locator("#view-mcp").inner_text()
+        page.context.grant_permissions(["clipboard-read","clipboard-write"])
+        page.click("#copy-mcp-config")
+        expect(page.locator("#message")).to_contain_text("已复制")
+        assert json.loads(page.evaluate("navigator.clipboard.readText()"))==config
+        page.click("#copy-mcp-endpoint")
+        expect(page.locator("#message")).to_contain_text("MCP 地址已复制")
+        assert page.evaluate("navigator.clipboard.readText()") == server["url"]
+        # A missing/disabled MCP entry must clear the old tool catalog and explain recovery.
+        def missing_mcp(route):
+            route.fulfill(status=404,json={"detail":"Not Found"})
+        page.route("**/mcp/",missing_mcp)
+        page.click("#check-mcp")
+        expect(page.locator("#mcp-state")).to_have_text("未连接")
+        expect(page.locator("#mcp-check-result")).to_contain_text("ENABLE_MCP=1")
+        expect(page.locator(".mcp-tool")).to_have_count(0)
+        page.unroute("**/mcp/",missing_mcp)
+        # Config follows the reported auth mode, without copying the user's credential.
+        def no_api_auth(route):
+            response=route.fetch()
+            health=response.json()
+            health["api_auth_enabled"]=False
+            route.fulfill(response=response,json=health)
+        page.route("**/health",no_api_auth)
+        expect(page.locator("#mcp-auth-state")).to_have_text("未启用",timeout=10000)
+        assert "headers" not in json.loads(page.locator("#mcp-config").inner_text())["mcpServers"]["qwen3-tts-openai"]
+        page.unroute("**/health",no_api_auth)
+        expect(page.locator("#mcp-auth-state")).to_have_text("Bearer Token",timeout=10000)
+        page.click("#check-mcp")
+        expect(page.locator("#mcp-state")).to_have_text("已连接")
+        assert {r["method"] for r in mcp_requests}=={"initialize","notifications/initialized","tools/list"}
+        assert page.request.get(args.url+"/v1/jobs",headers={"Authorization":"Bearer ui-test-token"}).json()["jobs"]==[]
+        page.screenshot(path=str(args.output/"mcp.png"),full_page=True)
         page.click('[data-view="voices"]')
         page.click("#voice-tab-upload")
         expect(page.locator("#voice-tab-quick")).to_be_hidden()
@@ -32,6 +84,7 @@ def main(args):
         page.set_input_files("#sample-file",str(sample.resolve()))
         expect(page.locator("#voice-name")).to_have_value("controlled-tone")
         page.fill("#voice-name","浏览器测试音色")
+        page.fill("#voice-id","studio-narrator")
         page.fill("#ref-text","这是一段服务测试对应文字。")
         page.wait_for_function("document.querySelector('#sample-preview').readyState >= 1")
         assert page.locator("#sample-preview").evaluate("node => node.duration")>0
@@ -39,6 +92,19 @@ def main(args):
         expect(page.locator("#message")).to_contain_text("音色已保存",timeout=20000)
         page.click("#refresh-voices")
         expect(page.locator(".voice-item h3")).to_contain_text("浏览器测试音色")
+        expect(page.locator("#voice-list .voice-id-badge code")).to_have_text("studio-narrator")
+        badge = page.locator('[data-copy-voice-id="studio-narrator"]')
+        expect(badge).to_have_text("idstudio-narrator")
+        assert badge.locator("svg").count() == 0
+        page.click('[data-copy-voice-id="studio-narrator"]')
+        expect(page.locator("#message")).to_contain_text("音色 ID 已复制")
+        assert page.evaluate("navigator.clipboard.readText()") == "studio-narrator"
+        page.evaluate("Object.defineProperty(navigator, 'clipboard', {value:undefined, configurable:true})")
+        page.click('[data-copy-voice-id="studio-narrator"]')
+        expect(page.locator("#message")).to_contain_text("音色 ID 已复制")
+        page.evaluate("delete navigator.clipboard")
+        assert page.evaluate("navigator.clipboard.readText()") == "studio-narrator"
+        page.screenshot(path=str(args.output/"voice-ids.png"),full_page=True)
         page.locator(".voice-menu > summary").first.click()
         page.locator("[data-edit]").first.click()
         page.fill("#edit-ref-text","修改后的对应参考文字。")
@@ -172,7 +238,7 @@ def main(args):
         page.click('[data-mode="ssml"]')
         page.click("#load-ssml")
         expect(page.locator("#ssml-editor")).to_have_value(__import__("re").compile(r".*<speak.*",__import__("re").S))
-        expect(page.locator("#voice-mapping")).to_have_value(__import__("re").compile(r'.*"reference-speaker"\s*:\s*"voice_.*',__import__("re").S))
+        assert json.loads(page.input_value("#voice-mapping"))["reference-speaker"] == page.input_value("#voice-select")
         mapping=page.input_value("#voice-mapping")
         page.click("#mode-ssml .disclosure > summary")
         page.fill("#voice-mapping",'{"reference-speaker":')
@@ -191,6 +257,12 @@ def main(args):
         page.click('[data-view="jobs"]')
         expect(page.locator("#job-list tr")).not_to_have_count(0)
         page.click('[data-view="runtime"]')
+        expect(page.locator('[data-capability="instruction_control"]')).to_contain_text("开心地读")
+        expect(page.locator('[data-capability="instruction_control"]')).to_contain_text("停顿仍可单独设置")
+        expect(page.locator('[data-capability="word_alignment"]')).to_contain_text("每个词在音频中的精确起止时间")
+        expect(page.locator('[data-capability="word_alignment"]')).to_contain_text("按生成片段记录")
+        expect(page.locator('[data-capability="instruction_control"] .badge')).not_to_have_class(__import__("re").compile(r".*failed.*"))
+        page.screenshot(path=str(args.output/"capabilities.png"),full_page=True)
         page.click("#diagnostic-disclosure > summary")
         expect(page.locator("#runtime-detail")).to_contain_text("controlled-test-tone")
         # Adding a WAV from the studio opens the picker immediately, derives the
@@ -207,12 +279,22 @@ def main(args):
         voices=page.request.get(args.url+"/v1/voices",headers={"Authorization":"Bearer ui-test-token"}).json()["voices"]
         assert next(v for v in voices if v["voice_id"]==selected)["mode"]=="x_vector_only"
         page.set_viewport_size({"width":390,"height":844})
+        page.click('[data-view="voices"]')
+        expect(page.locator('[data-copy-voice-id="controlled-tone"]')).to_be_visible()
+        page.screenshot(path=str(args.output/"voice-ids-mobile.png"),full_page=True)
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        nav_tops=page.locator(".nav").evaluate_all("nodes => nodes.map(n => n.getBoundingClientRect().top)")
+        assert len(nav_tops)==5 and max(nav_tops)-min(nav_tops)<1
+        page.click('[data-view="mcp"]')
+        expect(page.locator("#view-mcp")).to_be_visible()
+        page.screenshot(path=str(args.output/"mcp-mobile.png"),full_page=True)
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         page.click('[data-view="studio"]')
         page.screenshot(path=str(args.output/"mobile.png"),full_page=True)
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         browser.close()
     assert not errors,errors
-    (args.output/"ui-smoke.json").write_text(json.dumps({"passed":True,"model_source":"controlled-test-tone","qwen_inference_verified":False,"javascript_errors":errors,"workflows":["upload","auto-voice-name-and-mode","direct-upload-and-return","inline-reference-preview","ref-text-dialog","default-plain-text","automatic-preflight","slow-preflight-lock","edited-input-preservation","explicit-degradation-review","speed-stepper","article-auto-detection","plain-source-preservation","malformed-json-localization","draft-and-profile-preservation","director-compile","whole-narration","blob-audio-metadata","authenticated-download","ssml-compile","segment-audition","jobs","capabilities","mobile-width"]},ensure_ascii=False,indent=2))
+    (args.output/"ui-smoke.json").write_text(json.dumps({"passed":True,"model_source":"controlled-test-tone","qwen_inference_verified":False,"javascript_errors":errors,"workflows":["mcp-authentication","mcp-discovery-and-schema","mcp-config-copy-without-secrets","mcp-missing-entry","mcp-auth-mode-config","mcp-without-inference","upload","semantic-voice-id","voice-id-visible-and-copyable","voice-id-copy-without-clipboard-api","voice-id-mobile-width","auto-voice-name-and-mode","direct-upload-and-return","inline-reference-preview","ref-text-dialog","default-plain-text","automatic-preflight","slow-preflight-lock","edited-input-preservation","explicit-degradation-review","speed-stepper","article-auto-detection","plain-source-preservation","malformed-json-localization","draft-and-profile-preservation","director-compile","whole-narration","blob-audio-metadata","authenticated-download","ssml-compile","segment-audition","jobs","capability-explanations","mobile-five-item-navigation","mcp-mobile-width","mobile-width"]},ensure_ascii=False,indent=2))
     print("UI_SMOKE_PASS (controlled service backend; no GPU/audio-quality acceptance)")
 
 

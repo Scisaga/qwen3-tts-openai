@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from config import Settings
+from qwen3_tts_openai.config import Settings
 
 
 if __name__ == "__main__":
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "60")
     from huggingface_hub import snapshot_download
     from requests.exceptions import ChunkedEncodingError, ConnectionError, Timeout
-    from storage import file_hash, write_json
+    from qwen3_tts_openai.storage import file_hash, write_json
     items = [(settings.model_id, settings.model_revision)]
     if args.combined:
         items.append((settings.expression_model_id, settings.expression_model_revision))

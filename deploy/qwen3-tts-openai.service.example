@@ -1,0 +1,20 @@
+# Adjust User, WorkingDirectory, EnvironmentFile and the virtual-environment path.
+[Unit]
+Description=Qwen3-TTS local voice studio
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tts
+WorkingDirectory=/srv/qwen3-tts-openai
+EnvironmentFile=/srv/qwen3-tts-openai/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/qwen3-tts-openai/.venv/bin/python -m qwen3_tts_openai
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

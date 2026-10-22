@@ -2,31 +2,99 @@
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
 const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
-const state = {mode:"text", voices:[], plan:null, planRequest:null, planStale:false, submitting:false, jobId:null, editId:null, audioUrls:[], job:null, polling:false, health:null, sampleUrl:null, voicePreviewUrl:null, previewVoiceId:null, uploadFromStudio:false, voiceEntry:null};
-const views = {studio:["配音工作台", "让每一段文字，都有合适的声音。"], voices:["音色管理", "保存参考录音，为每一次配音选择声音。"], jobs:["任务与产物", "查看生成记录，回听与下载已完成的音频。"], runtime:["运行状态", "查看模型就绪状态、计算设备与控制能力。"]};
+const state = {view:"studio", panel:"plan", routeJobId:null, mode:"text", voices:[], plan:null, planRequest:null, planStale:false, submitting:false, jobId:null, editId:null, audioUrls:[], job:null, polling:false, health:null, sampleUrl:null, voicePreviewUrl:null, previewVoiceId:null, uploadFromStudio:false, voiceEntry:null};
+const views = {studio:["配音工作台", "让每一段文字，都有合适的声音。"], voices:["音色管理", "保存参考录音，为每一次配音选择声音。"], jobs:["任务与产物", "查看生成记录，回听与下载已完成的音频。"], mcp:["MCP 接入", "连接智能体，复用本地音色、导演稿与配音任务。"], runtime:["运行状态", "查看模型就绪状态、计算设备与控制能力。"]};
+const viewPaths = {studio:"/studio", voices:"/voices", jobs:"/jobs", mcp:"/integrations/mcp", runtime:"/runtime"};
 const jobNames = {queued:"排队中", running:"执行中", succeeded:"已完成", failed:"失败", cancelled:"已取消"};
 const kindNames = {narration:"文稿配音", voice_prepare:"音色提取", model_preload:"模型加载", speech:"短句合成"};
 const voiceNames = {ready:"已就绪", pending:"待提取", failed:"提取失败"};
-const capabilityNames = {voice_clone:"参考音色克隆", instruction_control:"表达指令", combined_clone_instruction:"克隆与表达组合", reference_conditioning:"参考模式", control_granularity:"控制粒度", word_alignment:"词级对齐", numeric_controls:"语速、音高与增益", acoustic_validation:"听感验收"};
-const capabilityValues = {supported:"支持", unsupported:"不支持", experimental:"实验能力", "icl-and-x-vector":"完整参考 / 说话人特征", "x-vector-only-experimental":"说话人特征 · 实验", "presets-only":"预设音色", "sentence-or-short-paragraph":"句子或短段", "rubberband-and-ffmpeg":"Rubber Band / FFmpeg", "pending-human-listening":"待人工试听"};
+const capabilityNames = {voice_clone:"参考音色克隆", instruction_control:"情绪与表达指令", combined_clone_instruction:"音色克隆 + 表达指令", reference_conditioning:"参考音色提取方式", control_granularity:"参数作用范围", word_alignment:"逐词时间定位（词级对齐）", numeric_controls:"语速、音高、增益与停顿", acoustic_validation:"音色与听感"};
+const capabilityValues = {supported:"支持", unsupported:"当前不支持", experimental:"实验能力", "icl-and-x-vector":"完整参考 / 说话人特征", "x-vector-only-experimental":"说话人特征 · 实验", "presets-only":"预设音色", "sentence-or-short-paragraph":"句子或短段", "rubberband-and-ffmpeg":"后处理支持", "pending-human-listening":"需试听确认"};
+function capabilityDescription(key, value) {
+  if (key === "instruction_control") return value === "supported" ? "当前模型可接收语气或风格描述，具体效果需试听确认。" : value === "experimental" ? "表达控制仍在实验阶段，需明确启用并检查实际听感。" : "当前模型不执行“开心地读、带着疑问讲”等自然语言要求；语速、音高、增益和停顿仍可单独设置。";
+  if (key === "combined_clone_instruction") return value === "supported" ? "可组合参考音色与表达指令，仍需检查音色和表达效果。" : value === "experimental" ? "复刻音色与表达控制的组合路径仍属实验，需要显式启用并试听验收。" : "当前后端不支持同时复刻参考音色并执行自由表达指令。";
+  if (key === "word_alignment") return value === "supported" ? "可提供文字与音频的逐词对应信息，精度以实际产物为准。" : "不提供每个词在音频中的精确起止时间。时间轴按生成片段记录，不能直接作为逐词字幕时间轴，也不能据此精确控制某个词的时长。";
+  if (key === "control_granularity") return "语速、音高等参数按句子或短段设置；暂不支持同一句中逐词切换参数。";
+  if (key === "numeric_controls") return "导演稿或 SSML 中的数值控制可用，通过音频后处理执行；与上面的情绪表达指令分别判断。";
+  if (key === "acoustic_validation") return "文件生成成功不代表听感已经验收；请试听检查音色相似度、读法和段落衔接。";
+  if (key === "reference_conditioning") return value === "presets-only" ? "使用当前模型的预设音色。" : value === "x-vector-only-experimental" ? "实验后端使用说话人特征，不使用完整参考模式。" : "完整参考使用录音及对应文字；仅说话人特征模式不需要参考文字。";
+  if (key === "voice_clone") return value === "unsupported" ? "当前后端使用预设音色；复刻参考录音需要支持克隆的后端。" : "从参考录音提取可复用的音色条件，为新文稿生成配音。";
+  return "";
+}
 const issueNames = {instruction_unsupported:"表达指令无法执行", instruction_numeric_conflict:"表达要求与数值控制冲突", unknown_control:"存在未实现的控制", unsupported_style:"表达风格无法映射", voice_mapping_required:"需要明确选择本地音色", phoneme_unsupported:"不支持音素输入", say_as_unsupported:"读法规则无法执行", experimental_opt_in:"组合表达需要明确启用实验", reference_mode_unsupported:"参考模式与实验能力不匹配", inline_alignment_unsupported:"句内控制需要词级对齐", ssml_element_unsupported:"存在未实现的 SSML 元素"};
 function notice(message, error = false) {
   $("message").hidden = false; $("message").textContent = message; $("message").className = error ? "error" : "";
 }
-function showView(name) {
+async function copyToClipboard(text) {
+  try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return; } } catch {}
+  const field = document.createElement("textarea");
+  field.value = text; field.style.cssText = "position:fixed;opacity:0"; document.body.append(field);
+  try { field.select(); if (!document.execCommand("copy")) throw new Error("Clipboard unavailable"); }
+  finally { field.remove(); }
+}
+async function copyVoiceId(ident, source) {
+  try { await copyToClipboard(ident); notice("音色 ID 已复制。"); }
+  catch {
+    const range = document.createRange(); range.selectNodeContents(source);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+    notice("浏览器未允许自动复制，音色 ID 已选中，请手动复制。");
+  }
+}
+function updatePageUrl(replace = false) {
+  const params = new URLSearchParams();
+  if (state.view === "studio") {
+    if (state.mode !== "text") params.set("mode", state.mode);
+    if (state.panel === "task") {
+      params.set("panel", "task");
+      if (state.jobId) params.set("job", state.jobId);
+    }
+  } else if (state.view === "voices" && state.voiceEntry) params.set("tab", state.voiceEntry);
+  const query = params.toString(), path = viewPaths[state.view] + (query ? "?" + query : "");
+  if (location.pathname + location.search + location.hash !== path) history[replace ? "replaceState" : "pushState"](null, "", path);
+}
+function restoreLocation() {
+  if (location.hash === "#quick-clone") history.replaceState(null, "", "/voices?tab=quick");
+  const path = location.pathname.replace(/\/$/, "") || "/studio";
+  const name = Object.keys(viewPaths).find(key => viewPaths[key] === path) || "studio";
+  const params = new URLSearchParams(location.search);
+  state.routeJobId = name === "studio" && /^job_[0-9a-f]{32}$/.test(params.get("job") || "") ? params.get("job") : null;
+  if (name === "studio") {
+    selectMode(["director", "ssml"].includes(params.get("mode")) ? params.get("mode") : "text", {history:false});
+    showPanel(params.get("panel") === "task" || state.routeJobId ? "task" : "plan", {history:false});
+  } else if (name === "voices") {
+    state.voiceEntry = ["quick", "upload"].includes(params.get("tab")) ? params.get("tab") : null;
+    if (state.voiceEntry === "upload") window.QuickClone?.leaveRecording();
+    refreshVoiceEntryTabs();
+  }
+  showView(name, {history:false});
+  if (location.pathname === "/" || location.pathname !== path) history.replaceState(null, "", viewPaths[name] + location.search);
+}
+async function loadRouteData() {
+  if (state.health?.api_auth_enabled && !$("api-token").value) return;
+  if (state.view === "jobs") await jobs();
+  if (state.view === "studio" && state.routeJobId && state.routeJobId !== state.jobId) await selectJob(state.routeJobId, {history:false});
+}
+function showView(name, {history: recordHistory = true} = {}) {
+  if (state.view === "voices" && name !== "voices") window.QuickClone?.leaveRecording();
+  state.view = name;
   document.querySelectorAll(".view").forEach(node => node.hidden = node.id !== `view-${name}`);
   document.querySelectorAll(".nav").forEach(node => {
     node.classList.toggle("active", node.dataset.view === name);
     if (node.dataset.view === name) node.setAttribute("aria-current", "page"); else node.removeAttribute("aria-current");
   });
   $("view-title").textContent = views[name][0]; $("view-description").textContent = views[name][1];
+  document.title = `${views[name][0]} · Qwen3-TTS`;
+  if (recordHistory) updatePageUrl();
+  if (name === "mcp") window.McpPanel?.show();
 }
-function showPanel(name) {
+function showPanel(name, {history: recordHistory = true} = {}) {
+  state.panel = name;
   document.querySelectorAll(".inspector-tab").forEach(node => {
     const active = node.dataset.panel === name;
     node.classList.toggle("active", active); node.setAttribute("aria-selected", String(active)); node.tabIndex = active ? 0 : -1;
   });
   $("panel-plan").hidden = name !== "plan"; $("panel-task").hidden = name !== "task";
+  if (recordHistory && state.view === "studio") updatePageUrl();
 }
 function refreshVoiceEntryTabs() {
   const enabled = !!state.health?.features?.quick_voice_clone?.enabled;
@@ -44,6 +112,7 @@ function selectVoiceEntry(name) {
   if (name === "quick" && !state.health?.features?.quick_voice_clone?.enabled) return;
   if (name !== "quick") window.QuickClone?.leaveRecording();
   state.voiceEntry = name; refreshVoiceEntryTabs();
+  if (state.view === "voices") updatePageUrl();
 }
 async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
@@ -53,7 +122,7 @@ async function api(path, options = {}) {
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const error = body.error || {type:`http_${response.status}`, message:response.statusText};
-    const e = new Error(`[${error.type}] ${error.message}`); e.details = error.details; throw e;
+    const e = new Error(`[${error.type}] ${error.message}`); e.details = error.details; e.status = response.status; throw e;
   }
   return response;
 }
@@ -146,7 +215,7 @@ async function health() {
     state.health = {alive:false}; $("connection").textContent = "连接中断"; $("connection").className = "badge failed";
     $("model-alert").hidden = false; $("model-alert-title").textContent = "无法连接配音服务";
     $("model-alert-description").textContent = "请检查服务进程与网络连接；页面保留当前文稿。";
-    updateGenerationAvailability(); window.QuickClone?.refresh(); return;
+    updateGenerationAvailability(); window.QuickClone?.refresh(); window.McpPanel?.refreshContext(); return;
   }
   state.health = h;
   $("token-field").hidden = !h.api_auth_enabled;
@@ -168,24 +237,25 @@ async function health() {
     $("model-alert-description").textContent = model.state === "failed" ? modelErrorDescription(model) : "音频处理或编码检查失败，请查看完整诊断。";
   }
   $("runtime-detail").textContent = JSON.stringify(h, null, 2);
-  $("capabilities").innerHTML = Object.entries(model.capabilities || {}).map(([key,value]) => `<div class="capability-row"><span>${esc(capabilityNames[key] || key)}</span><span class="badge ${value === "supported" ? "ready" : value === "unsupported" ? "failed" : value === "experimental" ? "warning" : ""}">${esc(capabilityValues[value] || value)}</span></div>`).join("");
+  $("capabilities").innerHTML = Object.entries(model.capabilities || {}).map(([key,value]) => `<div class="capability-row" data-capability="${esc(key)}"><div class="capability-copy"><strong>${esc(capabilityNames[key] || key)}</strong><p>${esc(capabilityDescription(key, value))}</p></div><span class="badge ${value === "supported" || value === "rubberband-and-ffmpeg" ? "ready" : value === "experimental" ? "warning" : ""}">${esc(capabilityValues[value] || value)}</span></div>`).join("");
   const runtimeStat = (title, value, detail, status = "") => `<div class="runtime-stat"><span>${esc(title)}</span><strong class="${status}">${esc(value)}</strong><small>${esc(detail)}</small></div>`;
   $("runtime-overview").innerHTML = runtimeStat("模型状态", names[model.state] || model.state, shortModel, model.state) + runtimeStat("计算设备", gpuLabel(model), selection.host_name || model.hardware?.gpu || "按服务配置选择") + runtimeStat("推理精度", model.dtype === "float16" ? "FP16" : model.dtype, `Attention · ${model.attention}`) + runtimeStat("音频处理", h.audio.state === "ready" ? "已就绪" : "不可用", "Rubber Band + FFmpeg", h.audio.state);
   const facts = [["宿主机设备",gpuLabel(model)], ["GPU UUID",selection.host_uuid || model.hardware?.uuid || "尚未检测"], ["进程内编号",model.device], ["模型可推理",h.inference_ready ? "是" : "否"], ["设备隔离",selection.isolated ? "仅指定 GPU 可见" : model.device === "test-only" ? "服务测试替身" : "未配置"]];
   $("device-detail").innerHTML = `<div class="device-facts">${facts.map(([key,value]) => `<div class="device-fact"><span>${esc(key)}</span><strong>${esc(value)}</strong></div>`).join("")}</div>${selection.isolated ? `<p class="mapping-explanation">已隔离选择${esc(gpuLabel(model))}，进程中唯一可见的 GPU 会重新编号为 ${esc(model.device)}。设备选择与模型是否加载成功分别报告。</p>` : ""}${model.state === "failed" ? `<div class="runtime-error">${esc(modelErrorDescription(model))}<br><small>${esc(model.error?.type || "model_failed")}</small></div>` : ""}`;
-  updateGenerationAvailability(); window.QuickClone?.refresh();
+  updateGenerationAvailability(); window.QuickClone?.refresh(); window.McpPanel?.refreshContext();
 }
 async function voices() {
   const result = await json("/v1/voices"); state.voices = result.voices;
   const previous = $("voice-select").value;
   $("voice-count").textContent = result.voices.length;
-  $("voice-select").innerHTML = '<option value="">请选择本地音色</option>' + result.voices.map(v => `<option value="${esc(v.voice_id)}">${esc(v.name)} · ${esc(voiceNames[v.conditioning_state] || v.conditioning_state)}</option>`).join("");
+  $("voice-select").innerHTML = '<option value="">请选择本地音色</option>' + result.voices.map(v => `<option value="${esc(v.voice_id)}">${esc(v.name)} · ${esc(v.voice_id)} · ${esc(voiceNames[v.conditioning_state] || v.conditioning_state)}</option>`).join("");
   if (result.voices.some(v => v.voice_id === previous)) $("voice-select").value = previous;
   else if (result.voices.length) $("voice-select").value = result.voices[0].voice_id;
   if (previous !== $("voice-select").value) markPlanStale();
   $("preview-voice").disabled = !result.voices.some(v => v.voice_id === $("voice-select").value && !v.preset);
-  $("voice-list").innerHTML = result.voices.length ? result.voices.map(v => `<div class="voice-item"><span class="voice-avatar">${icon("voice")}</span><div class="voice-body"><div class="voice-heading"><h3>${esc(v.name)}</h3></div><p title="${esc(v.voice_id)}">${esc(v.mode === "icl" ? "完整参考" : v.mode === "x_vector_only" ? "说话人特征" : "预设音色")}${v.reference?.duration_seconds ? ` · ${v.reference.duration_seconds.toFixed(1)} 秒` : ""}</p>${v.error ? `<p class="failed">${esc(v.error.message)}</p>` : ""}</div><div class="voice-actions"><span class="badge ${v.conditioning_state === "ready" ? "ready" : v.conditioning_state === "failed" ? "failed" : "warning"}">${esc(voiceNames[v.conditioning_state] || v.conditioning_state)}</span>${v.preset ? "" : `<button class="link-button" data-sample="${esc(v.voice_id)}">试听</button>`}<button class="secondary" data-select-voice="${esc(v.voice_id)}">使用</button>${v.preset ? "" : `<details class="voice-menu"><summary aria-label="${esc(v.name)}的更多操作">⋯</summary><div class="voice-menu-items"><button class="link-button" data-edit="${esc(v.voice_id)}">编辑对应文字</button><button class="link-button" data-prepare="${esc(v.voice_id)}">重新提取</button></div></details>`}</div><div class="sample-slot"></div></div>`).join("") : `<div class="empty-state"><svg class="icon empty-icon"><use href="#i-voice"/></svg><strong>还没有参考音色</strong><p>选择清晰录音，添加你的第一个音色。</p></div>`;
+  $("voice-list").innerHTML = result.voices.length ? result.voices.map(v => `<div class="voice-item"><span class="voice-avatar">${icon("voice")}</span><div class="voice-body"><div class="voice-heading"><button type="button" class="voice-id-badge" data-copy-voice-id="${esc(v.voice_id)}" title="点击复制音色 ID：${esc(v.voice_id)}" aria-label="复制音色 ID：${esc(v.voice_id)}"><span aria-hidden="true">id</span><code>${esc(v.voice_id)}</code></button><h3 title="${esc(v.name)}">${esc(v.name)}</h3></div><p>${esc(v.mode === "icl" ? "完整参考" : v.mode === "x_vector_only" ? "说话人特征" : "预设音色")}${v.reference?.duration_seconds ? ` · ${v.reference.duration_seconds.toFixed(1)} 秒` : ""}</p>${v.error ? `<p class="failed">${esc(v.error.message)}</p>` : ""}</div><div class="voice-actions"><span class="badge ${v.conditioning_state === "ready" ? "ready" : v.conditioning_state === "failed" ? "failed" : "warning"}">${esc(voiceNames[v.conditioning_state] || v.conditioning_state)}</span>${v.preset ? "" : `<button class="link-button" data-sample="${esc(v.voice_id)}">试听</button>`}<button class="secondary" data-select-voice="${esc(v.voice_id)}">使用</button>${v.preset ? "" : `<details class="voice-menu"><summary aria-label="${esc(v.name)}的更多操作">⋯</summary><div class="voice-menu-items"><button class="link-button" data-edit="${esc(v.voice_id)}">编辑对应文字</button><button class="link-button" data-prepare="${esc(v.voice_id)}">重新提取</button></div></details>`}</div><div class="sample-slot"></div></div>`).join("") : `<div class="empty-state"><svg class="icon empty-icon"><use href="#i-voice"/></svg><strong>还没有参考音色</strong><p>选择清晰录音，添加你的第一个音色。</p></div>`;
   $("voice-list").querySelectorAll("[data-select-voice]").forEach(b => b.onclick = () => { if ($("voice-select").value !== b.dataset.selectVoice) { markPlanStale(); clearVoicePreview(); } $("voice-select").value = b.dataset.selectVoice; $("preview-voice").disabled = !!state.voices.find(v => v.voice_id === b.dataset.selectVoice)?.preset; showView("studio"); });
+  $("voice-list").querySelectorAll("[data-copy-voice-id]").forEach(b => b.onclick = () => copyVoiceId(b.dataset.copyVoiceId, b.querySelector("code")));
   $("voice-list").querySelectorAll(".voice-menu").forEach(menu => menu.addEventListener("toggle", () => {
     if (!menu.open) return;
     document.querySelectorAll(".voice-menu[open]").forEach(other => { if (other !== menu) other.open = false; });
@@ -293,12 +363,14 @@ async function previewVoice() {
   audio.hidden = false;
   try { await audio.play(); } catch { notice("参考录音已准备好，可使用播放器试听。"); }
 }
-async function selectJob(ident) {
+async function selectJob(ident, {history: recordHistory = true} = {}) {
   state.jobId = ident; state.job = null; releaseAudio(); $("artifacts").innerHTML = "";
   $("job-empty").hidden = true; $("job-content").hidden = false; $("active-job").textContent = `读取任务 · ${ident}`;
   $("job-error").hidden = true; $("job-result-note").hidden = true;
   $("job-status").textContent = "读取中"; $("job-percentage").textContent = "—"; $("job-progress").value = 0;
-  showView("studio"); showPanel("task"); await pollJob();
+  showView("studio", {history:false}); showPanel("task", {history:false});
+  if (recordHistory) updatePageUrl();
+  await pollJob();
 }
 function formatDate(seconds) { return new Date(seconds * 1000).toLocaleString("zh-CN", {timeZone:"Asia/Shanghai",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}); }
 function progressText(job) {
@@ -392,13 +464,14 @@ async function jobs() {
   $("job-list").innerHTML = result.jobs.length ? result.jobs.map(j => `<tr><td class="job-table-id" title="${esc(j.job_id)}">${esc(j.job_id.slice(0,18))}…</td><td>${esc(kindNames[j.kind] || j.kind)}</td><td><span class="badge ${j.status === "succeeded" ? "ready" : j.status === "failed" ? "failed" : j.status === "running" ? "warning" : ""}">${esc(jobNames[j.status] || j.status)}</span></td><td><div class="table-progress"><progress value="${j.progress}" max="1" aria-label="任务进度"></progress>${Math.round(j.progress*100)}%</div></td><td class="muted">${formatDate(j.created_at)}</td><td><button class="link-button" data-job="${esc(j.job_id)}">查看 ${icon("arrow")}</button></td></tr>`).join("") : '<tr><td colspan="6" class="table-empty">还没有生成任务，先从工作台提交一份文稿。</td></tr>';
   $("job-list").querySelectorAll("[data-job]").forEach(b => b.onclick = () => run(() => selectJob(b.dataset.job)));
 }
-function selectMode(mode) {
+function selectMode(mode, {history: recordHistory = true} = {}) {
   if (state.mode !== mode) markPlanStale(); state.mode = mode;
   document.querySelectorAll(".tab").forEach(node => {
     const active = node.dataset.mode === mode; node.classList.toggle("active", active); node.setAttribute("aria-selected",String(active)); node.tabIndex = active ? 0 : -1;
   });
   document.querySelectorAll(".mode").forEach(node => node.hidden = node.id !== `mode-${mode}`);
   sourceMeta();
+  if (recordHistory && state.view === "studio") updatePageUrl();
 }
 function keyboardTabs(selector, activate) {
   document.querySelectorAll(selector).forEach(node => node.addEventListener("keydown", event => {
@@ -408,7 +481,12 @@ function keyboardTabs(selector, activate) {
     activate(target); target.focus();
   }));
 }
-document.querySelectorAll(".nav").forEach(b => b.onclick = () => { state.uploadFromStudio = false; showView(b.dataset.view); if (b.dataset.view === "jobs") run(jobs); if (b.dataset.view === "voices") run(voices); });
+document.querySelectorAll(".nav").forEach(b => b.onclick = event => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault(); state.uploadFromStudio = false; showView(b.dataset.view);
+  if (b.dataset.view === "jobs") run(jobs); if (b.dataset.view === "voices") run(voices);
+});
+window.addEventListener("popstate", () => { restoreLocation(); run(loadRouteData); });
 document.querySelectorAll(".tab").forEach(b => b.onclick = () => selectMode(b.dataset.mode));
 document.querySelectorAll(".inspector-tab").forEach(b => b.onclick = () => showPanel(b.dataset.panel));
 document.querySelectorAll(".voice-entry-tab").forEach(b => b.onclick = () => selectVoiceEntry(b.dataset.voiceEntry));
@@ -456,7 +534,7 @@ document.querySelectorAll("[data-speed-step]").forEach(button => button.onclick 
   speed.value = Math.max(.25,Math.min(4,(Number.isFinite(current) ? current : 1) + Number(button.dataset.speedStep))).toFixed(2);
   markPlanStale();
 });
-bind("go-upload", () => { state.uploadFromStudio = true; showView("voices"); selectVoiceEntry("upload"); $("sample-file").click(); $("voice-form").scrollIntoView({block:"nearest"}); });
+bind("go-upload", () => { state.uploadFromStudio = true; showView("voices", {history:false}); selectVoiceEntry("upload"); $("sample-file").click(); $("voice-form").scrollIntoView({block:"nearest"}); });
 bind("preview-voice", previewVoice); bind("refresh-voices", voices); bind("refresh-jobs", jobs);
 bind("compile-button", compile); bind("submit-button", () => submit(requestBody(), true)); bind("refresh-button", pollJob);
 bind("cancel-button", async () => { await json(`/v1/jobs/${state.jobId}/cancel`, {method:"POST"}); await pollJob(); });
@@ -476,8 +554,11 @@ bind("load-ssml", async () => {
   $("ssml-editor").value = await response.text(); $("voice-mapping").value = JSON.stringify({"reference-speaker":$("voice-select").value},null,2); markPlanStale();
 });
 bind("inspect-error", () => { showView("runtime"); $("diagnostic-disclosure").open = true; });
-$("api-token").onchange = () => run(async () => { await voices(); $("message").hidden = true; });
-sourceMeta(); run(async () => { await health(); await voices(); });
+$("api-token").onchange = () => {
+  window.McpPanel?.credentialsChanged();
+  run(async () => { await voices(); await loadRouteData(); $("message").hidden = true; });
+};
+restoreLocation(); sourceMeta(); run(async () => { await health(); await voices(); await loadRouteData(); });
 setInterval(() => run(health), 3000);
 setInterval(() => {
   if (state.jobId && (!state.job || ["queued", "running"].includes(state.job.status))) run(pollJob);

@@ -31,6 +31,8 @@
   <a href="#one-prompt-setup">One-prompt setup</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#features">Features</a> ·
+  <a href="#director-scripts-turn-narration-controls-into-an-execution-plan">Director scripts</a> ·
+  <a href="#choosing-voices-for-narrative-presentations-and-video">Narration voices</a> ·
   <a href="#install-the-qwen3-tts-openai-skill">Agent Skill</a> ·
   <a href="#quick-start">Manual deployment</a> ·
   <a href="#application-integration">API &amp; MCP</a> ·
@@ -48,6 +50,8 @@ Install the qwen3-tts-openai Skill for the agent client I am currently using,
 then deploy or connect to the narration service on this host.
 Repository: https://github.com/Scisaga/qwen3-tts-openai
 Skill directory: skills/qwen3-tts-openai
+Application code: qwen3_tts_openai/; dependency files: requirements/.
+For native deployment, start the service with python -m qwen3_tts_openai.
 
 First read SKILL.md and references/setup.md in that directory and check for Python 3.10+.
 Run scripts/tts_skill.py install with the appropriate --client option,
@@ -71,13 +75,13 @@ For remote deployment, replace “this host” with “the configured SSH host t
 
 ### Narration workbench
 
-Edit the script and choose a voice on the left. Inspect segments, control parameters, and the execution plan on the right. **Generate narration** (生成配音) runs preflight automatically; you can also check the script separately before submitting it.
+Choose a voice and edit plain text, a director script, or SSML on the left. Inspect pages, segments, controls, preflight issues, and the execution plan on the right. **Generate narration** (生成配音) runs preflight automatically; you can also check the script separately before submitting it.
 
 ![Narration workbench: script editor and execution plan](docs/images/workbench.png)
 
 | Voice management | Generation and playback |
 | --- | --- |
-| Switch between the **Quick clone** and **Add voice** tabs to create, manage, preview, and select voices. | Follow job progress, preview the result, and download MP3 or WAV. |
+| Each row places a clickable ID badge before the name. Copy the ID, preview and select voices, or create one through **Quick clone** or **Add voice**. | Follow progress, switch between full-script and per-page playback, and download MP3, WAV, timelines, and execution records. |
 | ![Voice management](docs/images/voices.png) | ![Narration result and audio downloads](docs/images/audio-result.png) |
 
 ### Quick voice cloning
@@ -90,13 +94,33 @@ During generation, progress follows actual decoding steps. The page refreshes ev
 
 ![Generation progress and audio duration in a controlled demonstration](docs/images/progress.png)
 
-*Screenshots show the current Chinese-language interface, demonstration scripts, and controlled test audio. Device and job identifiers are hidden. They illustrate the workflow; evaluate voice quality with the real model. The repository does not include reference recordings, so add your own voice before first use. Supporting deployment, Skill, and development guides linked below are currently in Chinese.*
+| MCP integration | Runtime status |
+| --- | --- |
+| Copy the endpoint and client configuration, check the connection, and inspect the service's actual tools and parameters. | Check model readiness, audio tools, and control capabilities, including the distinction between numeric controls, expression instructions, and word alignment. |
+| ![MCP integration: connection checks, configuration, and tool discovery](docs/images/mcp.png) | ![Runtime status: model and control capabilities](docs/images/runtime.png) |
+
+<details>
+<summary>Jobs and artifacts: generation history, progress, and results</summary>
+
+![Jobs and artifacts: narration jobs and result links](docs/images/jobs.png)
+
+</details>
+
+<details>
+<summary>Mobile preview: navigation and voice IDs</summary>
+
+<img src="docs/images/mobile.png" width="390" alt="Mobile interface: five navigation entries and voice ID badges beside names">
+
+</details>
+
+*Screenshots show the current Chinese-language interface, demonstration scripts, and an isolated test backend with controlled tones. Job identifiers are hidden. They illustrate the workflow; evaluate similarity, pronunciation, and voice quality with the real model. The repository does not include reference recordings, so add your own voice before first use. Supporting deployment, Skill, and development guides linked below are currently in Chinese.*
 
 ## Features
 
 | Feature | What it does |
 | --- | --- |
 | Reference voice cloning | Upload a WAV and save a reusable voice, using either the full reference or speaker features only. |
+| Readable voice IDs | Set a short ID when uploading or quick-cloning. Each row shows a clickable ID badge before its name; use the copied ID in API, MCP, or director scripts. |
 | Quick cloning, optional | Record in the browser or upload a short clip, transcribe it, confirm the text, save the voice, and preview it with a new sentence. |
 | LAN browser recording, optional | Provides a separate HTTPS entry point, a link from the HTTP workbench, and a public CA certificate download. Trust the certificate on the client computer to enable microphone access. |
 | Multiple script formats | Paste plain text, or organize pages and segments with director-script JSON or SSML. |
@@ -105,6 +129,9 @@ During generation, progress follows actual decoding steps. The page refreshes ev
 | Preview and export | Generate full-script or per-page audio and preview selected sections. Export MP3, WAV, timelines, execution records, and the original input. |
 | Jobs and caching | Inspect the queue, progress, and job history; cancel jobs; reuse verified generation and postprocessing caches. |
 | Application integration | An OpenAI-compatible speech API subset, asynchronous REST API, and HTTP MCP. |
+| MCP integration page | Check the actual connection, copy endpoints and configuration, and inspect the tool catalog and JSON Schema. |
+| Pages and navigation | Five independent page URLs support reloads, bookmarks, and browser history, with desktop and mobile layouts. |
+| Runtime status | Inspect readiness, devices, audio tools, and explanations of the active backend's control capabilities. |
 | Agent Skill | Install the Skill for Codex or Claude Code to guide local or SSH deployment, connect to a service, choose voices, and generate and download narration. |
 | Self-hosting | Local models and file storage with SQLite persistence. The workbench needs no separate frontend build, and models can be downloaded in advance for offline inference. |
 
@@ -115,6 +142,20 @@ During generation, progress follows actual decoding steps. The page refreshes ev
 3. **Generate narration.** The workbench runs preflight and submits a job. Resolve any issues first, or confirm the degradations listed in the plan.
 4. **Preview and download.** Check pronunciation and transitions, then download MP3 or WAV. Multi-page scripts also support per-page playback and export.
 
+Each page has its own URL and can be opened directly, reloaded, bookmarked, or opened in a new tab:
+
+| Page | Path | Main actions |
+| --- | --- | --- |
+| Narration workbench | `/studio` | Plain text, director scripts, SSML, preflight, generation, full-script and per-page playback. |
+| Voice management | `/voices` | Copy IDs, listen to references, select voices, quick-clone, or upload recordings. |
+| Jobs and artifacts | `/jobs` | Inspect status, progress, and history, and open existing job results. |
+| MCP integration | `/integrations/mcp` | Check connections, copy configuration, and inspect actual tools and parameters. |
+| Runtime status | `/runtime` | Inspect model readiness, devices, audio tools, and control capabilities. |
+
+URLs preserve page state: `/studio?mode=director` or `?mode=ssml` selects a script format, `/voices?tab=quick` or `?tab=upload` selects a voice-creation tab, and `/studio?panel=task&job=<job_id>` opens an existing job. Browser back/forward navigation restores the corresponding page. Leaving a recording page stops recording and releases the microphone.
+
+Each voice row places a small-cornered `id | narrator` badge and the voice name on one line. Clicking either part of the badge copies only the ID, and keyboard activation is supported. Desktop text uses a moderate size; mobile keeps compact typography and an adapted layout.
+
 ## Director scripts: turn narration controls into an execution plan
 
 A director script combines text and narration controls in one JSON document. Use `pages` and `segments` to organize pages and passages, with `rate`, `pitch`, `pause_after_ms`, and an optional `voice_id` for each segment. This is useful for lessons, presentations, and long narration that needs precise control.
@@ -124,6 +165,21 @@ A director script combines text and narration controls in one JSON document. Use
 3. **Generate and review.** Preview selected pages or segments, then listen to the full script or individual pages. Export MP3, WAV, timelines, and execution records.
 
 Pace, pitch, and pauses use explicit numeric controls. Intent and expressive descriptions in a director script do not prove that the model achieves the requested sound. Plain text and SSML remain available as separate input formats.
+
+## Choosing voices for narrative presentations and video
+
+Choose a primary narration voice, then use a director script to arrange pace and pauses for each page. The following are readable ID suggestions and possible reference voices to compare in the [Microsoft Voice Gallery](https://speech.microsoft.com/portal/voicegallery):
+
+| Suggested ID | Reference voice | Suggested use |
+| --- | --- | --- |
+| `yunxi` | Yunxi · natural male narration | Stories, explainers, and everyday presentation narration. |
+| `yunjian` | Yunjian · documentary male narration | History, humanities, and documentary storytelling. |
+| `yunyang` | Yunyang · professional male explanation | Business, technical presentations, and training. |
+| `xiaohan` | Xiaohan · gentle female narration | Education, everyday stories, and humanities. |
+
+These are reference choices and naming suggestions. Register a voice on your service before using its ID; check `GET /v1/voices` or Voice management for the actual list. Users provide and manage recordings, and local Qwen3-TTS generates the cloned narration. A reference sample's style does not mean that Base can execute Azure emotion tags.
+
+Compare candidates using the same narration text, checking pronunciation, pace, long sentences, and transitions. For video production, export per-page MP3/WAV and segment timelines from the director script. Word-level subtitle timing needs a separate alignment step.
 
 ## Related skill repository
 
@@ -192,7 +248,7 @@ On each client computer, complete these steps before recording for the first tim
 
 Once configured, the HTTP page links directly to the Quick clone tab at the HTTPS entry point. The HTTPS page provides the recording controls. The HTTP workbench and existing API URL remain available, and the TTS backend continues to access ASR over internal HTTP. If API authentication is enabled, enter the API token again on the HTTPS page.
 
-If you already have a trusted domain and HTTPS proxy, set `HTTPS_PUBLIC_URL` and keep `HTTPS_LOCAL_CA=0`. For a native deployment, you can also set both certificate paths below to make `server.py` serve HTTPS directly on the configured `PORT`:
+If you already have a trusted domain and HTTPS proxy, set `HTTPS_PUBLIC_URL` and keep `HTTPS_LOCAL_CA=0`. For a native deployment, you can also set both certificate paths below to make `python -m qwen3_tts_openai` serve HTTPS directly on the configured `PORT`:
 
 ```dotenv
 TLS_CERTFILE=/path/to/server.crt
@@ -277,6 +333,20 @@ Open <http://127.0.0.1:8000/>, wait until the model status shows **Ready** (已�
 
 To enable API authentication, set `API_TOKEN` and send `Authorization: Bearer <token>` when calling `/v1/*` or `/mcp/`. See [.env.example](.env.example) for more settings.
 
+### Native startup
+
+On a Linux host with NVIDIA drivers, FFmpeg, FFprobe, and Rubber Band CLI installed, run the same application entry point from the checkout root. Configure `.env`, select the GPU, and check build compatibility as described above:
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/pip install --require-hashes -r requirements/requirements-gpu.lock
+.venv/bin/python scripts/check_toolchain.py
+.venv/bin/python scripts/download_models.py --http --online
+.venv/bin/python -m qwen3_tts_openai
+```
+
+See [deploy/qwen3-tts-openai.service.example](deploy/qwen3-tts-openai.service.example) for a systemd template. Adjust the user, checkout, and virtual-environment paths. Set `WorkingDirectory` to the checkout root and `ExecStart` to the virtual environment's Python followed by `-m qwen3_tts_openai`.
+
 ### Inference speed
 
 The default attention implementation is SDPA, and model generation runs in inference mode. CPU computation threads are configured as follows. Existing deployments should update these fields in `.env` and restart the service:
@@ -311,9 +381,12 @@ First add a voice through the workbench or upload a reference recording:
 curl --fail-with-body http://127.0.0.1:8000/v1/voices \
   -F file=@reference.wav \
   -F 'name=My narration voice' \
+  -F voice_id=narrator \
   -F 'ref_text=Enter the words actually spoken in the reference recording.' \
   -F mode=icl
 ```
+
+Choose a readable `voice_id` such as `narrator` or `xiaoxiao`: 1–40 lowercase letters, Chinese characters, or digits, separated by single hyphens if needed. Omit it to generate an ID from the voice name, adding `-2`, `-3`, etc. for duplicates. A duplicate custom ID returns 409. Each voice has an `id | narrator` badge; click anywhere on it to copy the ID for API, MCP, or director-script use.
 
 The response includes a `voice_id` and a reference-conditioning job. Wait for the voice to become ready, then replace `<voice_id>` below with the returned ID:
 
@@ -327,6 +400,8 @@ curl --fail-with-body http://127.0.0.1:8000/v1/audio/speech \
 This endpoint implements a subset of the OpenAI speech request format, with MP3, WAV, and speed support. `voice` is a locally registered voice ID, not an OpenAI preset voice name. Streaming output is not currently available. Use the asynchronous narration API for long scripts.
 
 ### REST and MCP
+
+The workbench's **MCP integration** (MCP 接入) menu provides the service URL, copyable configuration, authentication guidance, and discovery of actual tools and their parameter schemas. **Check connection** initializes MCP and lists tools without submitting a narration job.
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -346,10 +421,31 @@ Examples are available in [narration_director.json](examples/narration_director.
 ## Current scope
 
 - The default Qwen3-TTS Base backend clones reference voices. Pace, pitch, and gain are applied through audio postprocessing. Base does not support free-form expressive instructions; the combined-expression backend is experimental and must be explicitly enabled.
-- Long scripts are generated as natural sentences or short passages. Word-level alignment is not provided. Evaluate voice similarity, terminology, and transitions by listening to the actual output.
+- Long scripts are generated as natural sentences or short passages. Timelines describe generated segments; exact start/end timestamps and duration control for individual words are not provided. Evaluate voice similarity, terminology, and transitions by listening to the actual output.
 - SSML supports the implemented tags and numeric controls, rather than the complete Azure SSML specification. Unsupported controls are reported during preflight.
 
 ## Open source and contributing
+
+### Project layout
+
+```text
+qwen3_tts_openai/          Python application package
+  __main__.py             python -m qwen3_tts_openai entry point
+  app.py                  HTTP endpoints, pages, and lifecycle
+  synthesis_service.py    Narration, voice preparation, and job orchestration
+  backends/               Model adapters and the isolated inference process
+  ...                     Director compiler, audio processing, configuration, storage
+requirements/             Service, GPU, and development .in and .lock files
+static/                   Chinese-language workbench; no separate build
+tests/                    API, jobs, audio, and runtime tests
+scripts/                  Downloads, diagnostics, validation, and UI screenshots
+deploy/                   HTTPS proxy and systemd templates
+skills/                   Independently installable Agent Skill
+docs/                     Architecture, validation, deployment, and UI images
+examples/                 Director scripts, voice profiles, and SSML
+```
+
+See [Development and validation](docs/testing.md) for dependency installation, tests, browser checks, and screenshot updates. Models, runtime data, local configuration, and test outputs stay in the ignored `models/`, `data/`, and local output directories.
 
 Report issues or submit pull requests to improve the interface, input formats, and model adapters. Include reproduction steps, error types, and sanitized logs when reporting a problem.
 

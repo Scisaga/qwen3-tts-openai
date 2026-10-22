@@ -19,11 +19,14 @@ curl --fail-with-body http://127.0.0.1:8000/v1/voices \
   -H "Authorization: Bearer $QWEN_TTS_API_TOKEN" \
   -F file=@reference.wav \
   -F 'name=我的讲解音色' \
+  -F voice_id=narrator \
   -F 'ref_text=参考录音里实际说出的文字。' \
   -F mode=icl
 ```
 
 保存返回的 `voice_id` 和 `preparation_job_id`。等待准备任务 `succeeded`，重新查询音色，确认 `conditioning_state=ready` 后提交配音。队列失败时音色可能已经保存，先查列表，不盲目重复上传。
+
+`voice_id` 可在上传或快速复刻时自定义，留空则根据名称生成。使用小写字母、汉字、数字和单个连字符，最长 40 字符；重复的自定义 ID 返回 409。音色管理位于 `/voices`，列表先显示可点击复制的 `id | narrator` badge，再显示名称。复制或查询服务实际返回的 ID，不假设推荐音色名称已注册。
 
 快速复刻是可选流程：需要服务使用 `qwen-base` 并配置 ASR 服务根地址 `ASR_BASE_URL`（不带 `/v1`）。`POST /v1/voices/references` 上传短录音得到 `draft_id` 和转写；用户回听并确认文字后，再向 `POST /v1/voices` 提交 `draft_id`、`name`、`ref_text` 和 `mode=icl`。ASR 故障时可使用 `transcribe=false` 和用户确认的文字，保留同一份草稿。未要求快速复刻时无需部署 ASR。
 
@@ -64,7 +67,7 @@ python3 ~/.agents/skills/qwen3-tts-openai/scripts/tts_skill.py download '<job_id
 
 `text`、`narration_director`、`ssml` 必须且只能提供一个。导演稿使用用户的完整对象和 `voice_profile`；SSML 使用 `voice_mapping` 将其中的音色名称映射到实际 ID。不要为“修复”预检而改写原文或丢弃控制字段。需要保留 JSON 原始格式时，将原始字符串附在 `source_documents.narration_director` 或 `source_documents.voice_profile` 中，其解析结果必须与对应对象相同。
 
-具体输入结构从部署 checkout 的 `examples/narration_director.json`、`examples/voice_profile.json`、`examples/minimal.ssml`、`contracts.py` 或在线 `/docs` 获取，不凭名称补造字段。实例不支持的表达控制、逐字对齐和 SSML 标签不能承诺实现。长稿使用异步任务；局部试听使用服务支持的 `selection.pages` 和 `selection.segments`，下标从 1 开始。
+具体输入结构从部署 checkout 的 `examples/narration_director.json`、`examples/voice_profile.json`、`examples/minimal.ssml`、`qwen3_tts_openai/contracts.py` 或在线 `/docs` 获取，不凭名称补造字段。实例不支持的表达控制、逐字对齐和 SSML 标签不能承诺实现。长稿使用异步任务；局部试听使用服务支持的 `selection.pages` 和 `selection.segments`，下标从 1 开始。
 
 ## 使用 MCP
 

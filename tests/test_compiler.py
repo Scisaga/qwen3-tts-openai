@@ -2,8 +2,9 @@ import copy
 
 import pytest
 
-from contracts import NarrationRequest
-from director_compiler import compile_narration
+from qwen3_tts_openai.contracts import NarrationRequest
+from qwen3_tts_openai.director_compiler import compile_narration
+from qwen3_tts_openai.errors import ServiceError
 from tests.conftest import ControlledBackend
 
 
@@ -94,7 +95,7 @@ def test_reference_voice_required_and_explicit_mapping(settings, director):
     req = NarrationRequest(narration_director=director, voice_profile={"provider":"azure-speech","voice":"zh-CN-XiaochenNeural"}, voice_mapping={"zh-CN-XiaochenNeural":"voice_local"}, allow_degraded=True)
     result = compile_narration(req, settings, ControlledBackend().capabilities, lambda v: {"voice_id":v})
     assert result["valid"] and result["units"][0]["voice_id"] == "voice_local"
-    assert not compile_narration(req.model_copy(update={"voice_mapping":{}}), settings, ControlledBackend().capabilities, lambda v: (_ for _ in ()).throw(__import__("errors").ServiceError("voice_not_found","Unknown voice")))["valid"]
+    assert not compile_narration(req.model_copy(update={"voice_mapping":{}}), settings, ControlledBackend().capabilities, lambda v: (_ for _ in ()).throw(ServiceError("voice_not_found","Unknown voice")))["valid"]
 
 
 def test_long_text_split_keeps_all_characters(settings):
@@ -166,7 +167,7 @@ def test_source_document_cannot_disagree_with_compiled_object(director):
 
 
 def test_combined_requires_opt_in_and_explicit_icl_degradation(settings):
-    from backends.qwen import capabilities
+    from qwen3_tts_openai.backends.qwen import capabilities
     settings=settings.model_copy(update={"backend":"qwen-combined-experimental"})
     request=NarrationRequest(text="组合实验。",voice_id="voice_test",allow_experimental=True)
     def resolve(v):

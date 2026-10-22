@@ -18,7 +18,7 @@ import pytest
 import soundfile as sf
 import uvicorn
 
-from app import create_app
+from qwen3_tts_openai.app import create_app
 from tests.conftest import ControlledBackend
 
 TEST_TOKEN = secrets.token_hex(16)

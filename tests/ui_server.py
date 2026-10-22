@@ -5,9 +5,9 @@ from pathlib import Path
 import uvicorn
 import httpx
 
-from app import create_app
-from asr_client import AsrClient
-from config import Settings
+from qwen3_tts_openai.app import create_app
+from qwen3_tts_openai.asr_client import AsrClient
+from qwen3_tts_openai.config import Settings
 from tests.conftest import ControlledBackend
 
 

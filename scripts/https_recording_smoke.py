@@ -43,7 +43,7 @@ def main(args):
                     const stream = await original(options); window.recordedTracks = stream.getTracks(); return stream;
                   };
                 })();""")
-                page.goto(args.url.rstrip("/") + "/#quick-clone")
+                page.goto(args.url.rstrip("/") + "/voices?tab=quick")
                 assert page.evaluate("isSecureContext") is True
                 if token:
                     page.fill("#api-token", token)

@@ -70,6 +70,7 @@ def main(args):
             ]
         )
         page.fill("#quick-name", "网页快速复刻")
+        page.fill("#quick-voice-id", "quick-narrator")
         page.fill("#quick-ref-text", "确认后的录音对应文字。")
         page.click("#voice-tab-upload")
         expect(page.locator("#quick-clone-card")).to_be_hidden()
@@ -82,6 +83,7 @@ def main(args):
         expect(page.locator("#quick-clone-card")).to_be_visible()
         expect(page.locator("#voice-tab-quick")).to_be_focused()
         expect(page.locator("#quick-name")).to_have_value("网页快速复刻")
+        expect(page.locator("#quick-voice-id")).to_have_value("quick-narrator")
         expect(page.locator("#quick-ref-text")).to_have_value("确认后的录音对应文字。")
         expect(page.locator("#quick-sample-preview")).to_be_visible()
         page.locator("#voice-tab-quick").press("End")
@@ -94,6 +96,11 @@ def main(args):
         ) as registered:
             page.click("#quick-create")
         voice = registered.value.json()
+        assert voice["voice_id"] == "quick-narrator"
+        expect(page.locator("#quick-result-voice-id")).to_have_text("quick-narrator")
+        page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+        page.click("#copy-quick-voice-id")
+        assert page.evaluate("navigator.clipboard.readText()") == "quick-narrator"
         assert voice["mode"] == "icl" and voice["ref_text"] == "确认后的录音对应文字。"
         expect(page.locator("#quick-result-status")).to_contain_text("音色已就绪", timeout=20000)
         expect(page.locator("#voice-select")).to_have_value(voice["voice_id"])
@@ -166,6 +173,25 @@ def main(args):
         assert page.evaluate("recordedTracks.every(track => track.readyState === 'ended')")
         workflows.append("navigation-stops-microphone")
 
+        page.click("#go-quick-clone")
+        page.click("#quick-record")
+        expect(page.locator("#quick-stop")).to_be_visible()
+        page.go_back()
+        expect(page.locator("#view-studio")).to_be_visible()
+        assert page.evaluate("recordedTracks.every(track => track.readyState === 'ended')")
+        workflows.append("history-navigation-stops-microphone")
+
+        page.click("#go-quick-clone")
+        page.click("#voice-tab-upload")
+        page.click("#voice-tab-quick")
+        page.click("#quick-record")
+        expect(page.locator("#quick-stop")).to_be_visible()
+        page.go_back()
+        expect(page.locator("#voice-upload-card")).to_be_visible()
+        assert page.evaluate("recordedTracks.every(track => track.readyState === 'ended')")
+        workflows.append("history-tab-switch-stops-microphone")
+        page.click('[data-view="studio"]')
+
         # Switch a pending recognition to manual text without losing the local recording.
         page.click("#go-quick-clone")
         held = []
@@ -215,12 +241,12 @@ def main(args):
         if https_settings["https_url"]:
             expect(insecure.locator("#quick-record")).to_be_enabled()
             expect(insecure.locator("#quick-record-label")).to_have_text("打开录音页面")
-            expect(insecure.locator("#quick-secure-link")).to_have_attribute("href", https_settings["https_url"] + "/#quick-clone")
+            expect(insecure.locator("#quick-secure-link")).to_have_attribute("href", https_settings["https_url"] + "/voices?tab=quick")
             if https_settings["https_local_ca"]:
                 expect(insecure.locator("#quick-ca-link")).to_be_visible()
             insecure.route(https_settings["https_url"] + "/**", lambda route: route.fulfill(status=200, content_type="text/html", body="<p>HTTPS recording entrance</p>"))
             insecure.click("#quick-record")
-            insecure.wait_for_url(https_settings["https_url"] + "/#quick-clone")
+            insecure.wait_for_url(https_settings["https_url"] + "/voices?tab=quick")
             workflows.append("http-button-opens-https")
         else:
             expect(insecure.locator("#quick-record")).to_be_disabled()

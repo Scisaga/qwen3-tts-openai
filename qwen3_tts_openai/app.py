@@ -12,12 +12,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import Settings
-from contracts import NarrationRequest, SpeechRequest, VoiceEdit
-from errors import ServiceError
-from synthesis_service import SynthesisService
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.contracts import NarrationRequest, SpeechRequest, VoiceEdit
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.synthesis_service import SynthesisService
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class RequestGuard:
@@ -75,7 +75,7 @@ def create_app(settings=None, backend=None):
     service = SynthesisService(settings, backend)
     mcp = None
     if settings.enable_mcp:
-        from mcp_server import build_mcp
+        from qwen3_tts_openai.mcp_server import build_mcp
         mcp = build_mcp(service)
 
     @asynccontextmanager
@@ -117,6 +117,11 @@ def create_app(settings=None, backend=None):
         return JSONResponse(ServiceError("invalid_input", "Request validation failed", 422, details).payload(), 422)
 
     @app.get("/", include_in_schema=False)
+    @app.get("/studio", include_in_schema=False)
+    @app.get("/voices", include_in_schema=False)
+    @app.get("/jobs", include_in_schema=False)
+    @app.get("/integrations/mcp", include_in_schema=False)
+    @app.get("/runtime", include_in_schema=False)
     def index():
         return FileResponse(ROOT / "static" / "index.html")
 
@@ -130,13 +135,14 @@ def create_app(settings=None, backend=None):
 
     @app.post("/v1/voices", status_code=202)
     async def register_voice(file: UploadFile | None = File(None), name: str = Form(...), ref_text: str = Form(""),
-                             mode: str | None = Form(None), draft_id: str | None = Form(None)):
+                             mode: str | None = Form(None), draft_id: str | None = Form(None),
+                             voice_id: str | None = Form(None)):
         if (file is None) == (draft_id is None):
             if file:
                 await file.close()
             raise ServiceError("invalid_reference_source", "Provide exactly one WAV file or reference draft_id", 422)
         if draft_id is not None:
-            return await asyncio.to_thread(service.register_reference, draft_id, name, ref_text, mode)
+            return await asyncio.to_thread(service.register_reference, draft_id, name, ref_text, mode, voice_id)
         if not (file.filename or "").lower().endswith(".wav"):
             await file.close()
             raise ServiceError("invalid_audio", "Upload a .wav reference file", 422)
@@ -149,7 +155,7 @@ def create_app(settings=None, backend=None):
                         if count > settings.max_upload_bytes:
                             raise ServiceError("upload_too_large", "Reference exceeds MAX_UPLOAD_BYTES", 413)
                         out.write(chunk)
-                return await asyncio.to_thread(service.register_voice, path, name, ref_text, mode)
+                return await asyncio.to_thread(service.register_voice, path, name, ref_text, mode, voice_id)
             finally:
                 await file.close()
 

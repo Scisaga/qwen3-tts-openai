@@ -4,8 +4,8 @@ import json
 import time
 import uuid
 
-from errors import ServiceError
-from storage import Database
+from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.storage import Database
 
 TERMINAL = {"succeeded", "failed", "cancelled"}
 

@@ -14,19 +14,19 @@ from pathlib import Path
 
 import soundfile as sf
 
-from asr_client import ASR_LANGUAGES, AsrClient
-from audio_processing import AudioProcessor, PROCESSING_VERSION
-from backends.qwen import ADAPTER_VERSION, PRESETS
-from backends.runtime import ModelRuntime
-from config import Settings
-from contracts import NarrationRequest, SpeechRequest
-from director_compiler import compile_narration
-from errors import Cancelled, ServiceError
-from job_store import JobStore, TERMINAL
-from job_progress import NarrationProgress
-from reference_store import ReferenceStore
-from storage import Database, digest, file_hash, write_json
-from voice_store import VoiceStore
+from qwen3_tts_openai.asr_client import ASR_LANGUAGES, AsrClient
+from qwen3_tts_openai.audio_processing import AudioProcessor, PROCESSING_VERSION
+from qwen3_tts_openai.backends.qwen import ADAPTER_VERSION, PRESETS
+from qwen3_tts_openai.backends.runtime import ModelRuntime
+from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.contracts import NarrationRequest, SpeechRequest
+from qwen3_tts_openai.director_compiler import compile_narration
+from qwen3_tts_openai.errors import Cancelled, ServiceError
+from qwen3_tts_openai.job_store import JobStore, TERMINAL
+from qwen3_tts_openai.job_progress import NarrationProgress
+from qwen3_tts_openai.reference_store import ReferenceStore
+from qwen3_tts_openai.storage import Database, digest, file_hash, write_json
+from qwen3_tts_openai.voice_store import VoiceStore
 
 log = logging.getLogger(__name__)
 
@@ -111,11 +111,11 @@ class SynthesisService:
         self.require_quick_clone()
         return self.references.transcribe(ident, self.asr, language)
 
-    def register_reference(self, ident, name, ref_text, mode=None):
+    def register_reference(self, ident, name, ref_text, mode=None, voice_id=None):
         self.require_quick_clone()
         if mode not in {None, "icl"}:
             raise ServiceError("invalid_reference_mode", "快速复刻使用完整参考模式，请确认录音对应文字。", 422)
-        return self.references.register(ident, name, ref_text, self.register_voice)
+        return self.references.register(ident, name, ref_text, self.register_voice, voice_id)
 
     def ready(self):
         inference_kind_ready = self.settings.backend != "qwen-combined-experimental" or self.backend.health.get("loaded_kind") == "expression"
@@ -158,7 +158,7 @@ class SynthesisService:
         self.wake.set()
         return self.public_job(job)
 
-    def register_voice(self, source, name, ref_text, mode=None):
+    def register_voice(self, source, name, ref_text, mode=None, voice_id=None):
         if self.settings.backend == "qwen-custom":
             raise ServiceError("voice_clone_unsupported", "CustomVoice exposes presets; use qwen-base to register reference audio", 422)
         if self.settings.backend == "qwen-combined-experimental" and (mode == "icl" or mode is None and ref_text.strip()):
@@ -167,7 +167,7 @@ class SynthesisService:
             raise ServiceError("invalid_voice_metadata", "Name must be 1-100 characters and ref_text <=4000 characters", 422)
         self.disk_check()
         model = {"model_id": self.settings.model_id, "revision": self.settings.model_revision, "dtype": self.settings.dtype, "adapter_version": ADAPTER_VERSION}
-        voice = self.voices.register(source, name, ref_text, mode, model)
+        voice = self.voices.register(source, name, ref_text, mode, model, voice_id)
         try:
             job = self.prepare_voice(voice["voice_id"])
         except ServiceError as e:

@@ -12,17 +12,21 @@ docker run --rm --network none qwen3-tts-openai:test
 docker run --rm --network none qwen3-tts-openai:test ruff check .
 ```
 
-原生开发可安装 `requirements-dev.lock`，并提供 FFmpeg、FFprobe 和 Rubber Band CLI：
+原生开发可安装 `requirements/requirements-dev.lock`，并提供 FFmpeg、FFprobe 和 Rubber Band CLI：
 
 ```bash
 python3.12 -m venv .venv
-.venv/bin/pip install --require-hashes -r requirements-dev.lock
+.venv/bin/pip install --require-hashes -r requirements/requirements-dev.lock
 .venv/bin/python scripts/check_toolchain.py
 .venv/bin/pytest -q
 .venv/bin/ruff check .
 ```
 
 测试覆盖文稿编译、SSML 子集、原文保留、音色条件隔离、缓存、真实音频后处理、持久化任务、HTTP 接口和模型进程超时。
+
+应用代码从 `qwen3_tts_openai` 包导入，原生与容器共用 `python -m qwen3_tts_openai` 入口。`tests/test_entrypoint.py` 在独立进程、临时数据目录和禁用模型预加载的配置中实际启动该入口，检查 HTTP 接口、五个页面、静态资源和示例文件；不加载 GPU 模型。
+
+`tests/test_voice_ids.py` 检查可读音色 ID 在上传、试听、编译、合成与重启后的使用，名称自动生成、并发重名分配、自定义 ID 冲突不覆盖录音，以及非法路径和 ID 的拒绝。浏览器流程检查音色 ID 的可见性、复制、自定义填写和移动布局；快速复刻流程也检查 ID 字段保留及结果中的 ID。
 
 ## Skill 验证
 
@@ -52,6 +56,14 @@ UI_TEST_DATA_DIR="$PWD/test-results/ui-data" \
 
 该测试检查上传、参考文字编辑、文本与结构化输入、自动预检、重复提交防护、任务进度、音频播放、下载和移动布局。测试服务与生产服务使用不同的数据目录和端口。
 
+页面路由检查五个独立入口 `/studio`、`/voices`、`/jobs`、`/integrations/mcp`、`/runtime`，以及文稿模式、音色页签和任务详情的查询参数。浏览器需覆盖直接打开、刷新、前进后退、草稿保留、原生链接在新标签页打开和路由切换时释放录音设备。ID 标签检查点击任一分区或键盘激活时复制纯 ID；字号与布局需同时检查桌面和窄屏。
+
+在同一隔离服务上运行 `.venv/bin/python scripts/navigation_ui_smoke.py --output test-results/navigation`，可验证页面路由、任务直达、标签交互与六种宽度的布局。该脚本会检查服务使用受控测试后端，再创建自己的测试音色与配音任务。
+
+桌面使用适度放大的字号；宽度不超过 700px 时保留原有手机字号，并继续检查标签、导航和各页面没有横向溢出。
+
+MCP 页面检查真实初始化与工具发现、实际 JSON Schema、鉴权失败与入口缺失提示、配置随鉴权模式变化、复制内容不包含真实 Token，以及连接检查不创建配音任务。运行状态检查表达指令与逐词时间定位的解释；移动布局检查五个导航入口和 MCP 页面无横向溢出。
+
 `UI_TEST_PROGRESS=1` 可让隔离测试服务逐帧写入受控测试音调并上报已写入帧数，用于检查段内进度与页面刷新。它验证界面与事件传递，不作为模型速度或听感证据。`tests/test_progress.py` 覆盖 RPC 进度与最终回复分离、固定超时、回调失败后的模型进程清理、旧数据库迁移、单调与终态进度，以及单段音频完成前的多次更新。真实 GPU 验证需提交未命中原始音频缓存的任务，观察多次递增的解码步数，并检查最终 MP3/WAV 与 100% 完成状态。
 
 快速复刻使用独立测试数据与受控 ASR HTTP 响应，覆盖真实浏览器 `MediaRecorder` 录音、格式转换、麦克风拒绝授权、离开页面时释放设备、识别失败后的重试、文字确认、音色提取及新句子试听：
@@ -72,12 +84,33 @@ UI_TEST_QUICK_CLONE=1 UI_TEST_DATA_DIR="$PWD/test-results/quick-clone-ui-data" \
   --url https://voice.example.test:8443 --ca-file static/local-ca.crt
 ```
 
+## 更新 README 截图
+
+截图使用独立的受控测试服务，启用模拟 ASR 和逐帧进度，不访问生产录音或模型：
+
+```bash
+UI_TEST_QUICK_CLONE=1 UI_TEST_PROGRESS=1 \
+  UI_TEST_DATA_DIR="$PWD/test-results/readme-data" \
+  .venv/bin/python -m tests.ui_server
+```
+
+另开终端执行：
+
+```bash
+.venv/bin/python scripts/capture_readme.py \
+  --url http://127.0.0.1:12308 --output docs/images
+```
+
+可用 `--browser-executable` 指定已安装的 Chromium。脚本先验证受控后端身份，再创建演示音色，生成导演稿示例，检查逐帧上报的进度和可播放产物，并截取工作台、音色、快速复刻、进度、结果、任务、MCP、运行状态和手机布局共九张图片。对生产模型服务会在向服务写入前拒绝执行。重拍时用新的独立数据目录重启测试服务，避免模拟 ASR 的调用次数和音频缓存影响截图。证据写入被忽略的 `test-results/readme-ui/`。
+
+更新中英文 README 时同步检查引用、图片、页面地址和功能说明。公开图片需人工检查布局与内容，并保留受控测试说明；不把模拟音调或截图作为真实模型音质证据。
+
 ## 真实模型验证
 
 安装 GPU 依赖，完成模型预下载并选择目标设备后，可先执行只读探测：
 
 ```bash
-.venv/bin/pip install --require-hashes -r requirements-gpu.lock
+.venv/bin/pip install --require-hashes -r requirements/requirements-gpu.lock
 .venv/bin/python scripts/probe_gpu.py --output test-results/gpu-probe.json
 ```
 

@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from storage import file_hash, write_json
+from qwen3_tts_openai.storage import file_hash, write_json
 
 
 def main(args):

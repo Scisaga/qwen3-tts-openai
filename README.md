@@ -1,14 +1,61 @@
 <p align="center">
-  <img src="static/favicon.svg" width="64" height="64" alt="qwen3-tts-openai 图标">
+  <img src="docs/images/brand/banner.svg" width="100%" alt="Qwen3-TTS OpenAI：用参考音色，为文字配音。参考录音与文稿生成可试听、下载的配音，支持本地部署和 OpenAI 兼容接入。">
 </p>
 
-# qwen3-tts-openai
+<h1 align="center">Qwen3-TTS OpenAI</h1>
 
-**用参考音色，为文字配音。**
+<p align="center"><strong>参考音色克隆 + 导演稿编排，从文稿到配音成品。</strong></p>
 
-一个基于 Qwen3-TTS 的自托管配音工作台。添加一段参考录音，选择音色，输入文稿，就能在自己的 GPU 上生成、试听并下载配音。也可以通过 OpenAI 兼容语音接口、REST API 和 MCP，把本地语音能力接入现有应用。
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-19765A?style=flat-square" alt="License: Apache 2.0"></a>
+  <a href="https://github.com/Scisaga/qwen3-tts-openai/stargazers"><img src="https://img.shields.io/github/stars/Scisaga/qwen3-tts-openai?style=flat-square&amp;color=19765A" alt="GitHub Stars"></a>
+  <a href="https://github.com/Scisaga/qwen3-tts-openai/issues"><img src="https://img.shields.io/github/issues/Scisaga/qwen3-tts-openai?style=flat-square&amp;color=34826D" alt="GitHub Issues"></a>
+  <a href="https://github.com/Scisaga/qwen3-tts-openai/actions/workflows/ci.yml"><img src="https://github.com/Scisaga/qwen3-tts-openai/actions/workflows/ci.yml/badge.svg" alt="Tests and build"></a>
+  <br>
+  <a href="Dockerfile"><img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12"></a>
+  <a href="docker-compose.yml"><img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&amp;logo=docker&amp;logoColor=white" alt="Docker Compose"></a>
+  <a href="#接入现有应用"><img src="https://img.shields.io/badge/MCP-Streamable_HTTP-19765A?style=flat-square" alt="MCP Streamable HTTP"></a>
+  <a href="#安装-qwen3-tts-openai-skill"><img src="https://img.shields.io/badge/Skill-Codex_%7C_Claude_Code-477A68?style=flat-square" alt="Skill: Codex / Claude Code"></a>
+</p>
 
-适合视频旁白、课程讲解、演示文稿配音和文章朗读。模型下载完成后支持离线推理，参考录音、文稿和生成音频保存在自己的存储中。
+<p align="center">
+  基于 Qwen3-TTS，复用参考音色，按导演稿逐页、逐段编排配音的语速、音高与停顿。<br>
+  在中文工作台中编辑、试听与下载，也可通过 OpenAI 兼容语音接口子集、REST API 或 MCP 接入应用与智能体。
+</p>
+
+<p align="center">
+  <a href="#一键安装提示词">一键安装</a> ·
+  <a href="#界面预览">界面预览</a> ·
+  <a href="#主要功能">主要功能</a> ·
+  <a href="#安装-qwen3-tts-openai-skill">Skill 接入</a> ·
+  <a href="#快速开始">手动部署</a> ·
+  <a href="#接入现有应用">API 与 MCP</a> ·
+  <a href="#开源与贡献">开源与贡献</a>
+</p>
+
+适合视频旁白、课程讲解、演示文稿配音和文章朗读。音色可反复使用，长稿可分段生成，成品可导出 MP3、WAV 和时间轴。服务支持自托管，模型下载完成后可离线推理，参考录音、文稿和生成音频由自己管理。
+
+## 一键安装提示词
+
+将下面的提示词复制到 **Codex 或 Claude Code**，让智能体安装 Skill，并完成环境检查、部署或已有服务接入：
+
+```text
+请为当前使用的智能体安装 qwen3-tts-openai Skill，并在当前主机部署或接入配音服务。
+项目仓库：https://github.com/Scisaga/qwen3-tts-openai
+Skill 目录：skills/qwen3-tts-openai
+
+先阅读该目录的 SKILL.md 和 references/setup.md，检查 Python 3.10+，
+使用 scripts/tts_skill.py install 为当前客户端安装 Skill，然后从已安装副本继续操作。
+
+优先复用已有的 qwen3-tts-openai 服务；首次部署按 Skill 指引检查 Linux x86_64、
+Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU，
+并核对当前构建与目标 GPU 的兼容性，具体以 Skill 部署指南和实际运行检查为准。
+多卡目标不明确时先让我选择，环境不兼容时报告缺失条件；保留现有配置、模型和数据。
+完成后运行 doctor --mcp，按当前客户端支持的方式接入 MCP，验证实际工具发现。
+告诉我 Skill 安装位置、工作台入口、服务就绪情况，以及当前会话是否需要重新加载。
+```
+
+远程部署时，将第一句的「当前主机」替换为「已配置的 SSH 主机 tts-host」；已有服务可直接注明根地址。只想安装 Skill 时，将第一句改为「只安装 Skill，暂不部署或修改服务」。安装本身不需要 GPU，真实生成需要兼容的服务和用户提供的参考录音。手动命令见 [Skill 安装与接入](#安装-qwen3-tts-openai-skill)。
 
 ## 界面预览
 
@@ -48,6 +95,7 @@
 | 试听与导出 | 支持整稿、逐页音频，以及局部试生成；导出 MP3、WAV、时间轴、执行记录和输入原文。 |
 | 任务与缓存 | 查看队列、进度和生成历史，取消任务；复用已验证的生成与后处理缓存。 |
 | 应用接入 | 提供 OpenAI 兼容语音接口子集、异步 REST API 与 HTTP MCP。 |
+| Agent Skill | 为 Codex / Claude Code 安装 Skill，引导本机或 SSH 部署、接入服务、选择音色并生成和下载配音。 |
 | 自托管 | 本地模型与文件存储，SQLite 持久化；网页无需单独构建，模型可预下载后离线运行。 |
 
 ## 从文稿到配音
@@ -56,6 +104,22 @@
 2. **输入文稿**：选择音色，粘贴要朗读的文字。需要逐页参数或发音规则时，切换到导演稿或 SSML。
 3. **生成配音**：点击生成，工作台自动预检并提交任务；若存在问题，先修正文稿或确认计划中列出的降级项。
 4. **试听与下载**：确认读法和段落衔接，下载 MP3 或 WAV。多页文稿还可以逐页试听与导出。
+
+## 导演稿：把配音要求变成执行计划
+
+导演稿将正文与配音控制放在同一份 JSON 中。通过 `pages`、`segments` 编排页面与段落，为片段设置 `rate`、`pitch`、`pause_after_ms` 和可选 `voice_id`，适合课程、演示文稿和需要精细控制的长篇旁白。
+
+1. **编排**：导入导演稿及音色配置，保留逐页正文、分段和发音规则。完整示例见 [导演稿 JSON](examples/narration_director.json) 与 [音色配置](examples/voice_profile.json)。
+2. **预检**：先编译执行计划，检查实际读法、分段、音色和控制参数。默认 Base 后端不执行自由情绪指令；不支持的要求会明确报告，接受降级后才执行。`target_seconds` 不代表严格时长保证。
+3. **生成与复核**：支持指定页面、片段的局部试生成；完成后试听整稿或逐页音频，导出 MP3、WAV、时间轴和执行记录。
+
+语速、音高与停顿以明确的数值控制执行；导演稿中的意图和表达描述不等于模型已实现相应听感。普通文字和 SSML 仍可作为独立入口使用。
+
+## 相关技能仓库
+
+[Scisaga/skills](https://github.com/Scisaga/skills) 汇集可独立安装的工具技能。其中 [build-narrated-presentation](https://github.com/Scisaga/skills/tree/main/skills/build-narrated-presentation) 面向逐页讲稿与演示文稿制作，可编排语速、音高和停顿，并按目标组织逐页音频、PPTX 或视频产物。本项目提供导演稿预检与本地配音服务；实际串联时需按技能配置核对语音后端与输入协议。
+
+本仓库随附的 [qwen3-tts-openai Skill](skills/qwen3-tts-openai/SKILL.md) 则负责本服务的安装部署、接入、音色选择、任务查询和音频下载。演示文稿制作与语音服务运维分别使用对应技能，安装说明以各自仓库为准。
 
 ## 快速音色复刻
 
@@ -127,9 +191,35 @@ TLS_KEYFILE=/path/to/server.key
 
 证书需覆盖访问域名或 IP，并受到访问设备信任。Docker 直接启用 TLS 时，还需挂载证书与私钥。独立代理的 CA 和私钥保存在 `.local/https/data`，需要持久保留；这些文件不进入 Git。
 
+## 安装 qwen3-tts-openai Skill
+
+[`qwen3-tts-openai` Skill](skills/qwen3-tts-openai/SKILL.md) 将安装部署、服务诊断和日常配音流程封装在一起。客户端只需 **Python 3.10+**，支持 Codex 与 Claude Code；推理服务运行在兼容的 Linux GPU 主机。
+
+取得源码后，在仓库根目录安装到当前用户：
+
+```bash
+python3 skills/qwen3-tts-openai/scripts/tts_skill.py install --client codex
+# Claude Code 使用 --client claude；同时安装使用 --client both
+```
+
+默认安装到 `~/.agents/skills/qwen3-tts-openai`（Codex）或 `~/.claude/skills/qwen3-tts-openai`（Claude Code）。Windows PowerShell 将 `python3` 换为 `py -3`。后续使用已安装的副本，例如诊断已启动的本机服务：
+
+```bash
+python3 ~/.agents/skills/qwen3-tts-openai/scripts/tts_skill.py \
+  --url http://127.0.0.1:8000 doctor --mcp
+```
+
+安装命令只复制 Skill；部署由智能体按 [安装、部署与接入](skills/qwen3-tts-openai/references/setup.md) 执行。已有服务优先复用，客户端的 REST helper 无需安装模型依赖；启用鉴权时从 `QWEN_TTS_API_TOKEN` 环境变量读取 Token。`doctor --mcp` 检查就绪状态、API 鉴权与 MCP 工具，不生成音频。
+
+安装后可直接对智能体说：
+
+> 使用 qwen3-tts-openai，连接我的配音服务，列出现有音色。使用我选定的音色为这篇文稿生成中文配音，先预检，等待任务完成后下载 MP3 和 WAV。
+
+Skill 提供预检、提交、任务查询与校验下载工具。完整命令、音色注册、导演稿与 SSML 用法见 [配音使用指南](skills/qwen3-tts-openai/references/usage.md)。Codex 可用 `$qwen3-tts-openai` 显式调用；Claude Code 使用 `/qwen3-tts-openai`。
+
 ## 快速开始
 
-需要 Linux、Docker Compose v2、可工作的 NVIDIA 驱动和 NVIDIA Container Toolkit。**当前推理后端限定单张 NVIDIA RTX 2080 Ti（sm_75），使用 FP16；暂不支持 CPU 推理或其他显卡。**
+需要 Linux、Docker Compose v2、可工作的 NVIDIA 驱动和 NVIDIA Container Toolkit。服务按单张 GPU、FP16 推理部署；开始前请核对 [GPU 与构建兼容性](docs/architecture.md#gpu-与构建兼容性)，其中记录了当前代码的设备检查和适配范围。
 
 以下是通用部署示例，可根据自己的环境调整端口与设备。
 

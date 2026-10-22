@@ -1,0 +1,4 @@
+interface:
+  display_name: "Qwen3-TTS 本地配音"
+  short_description: "安装部署 Qwen3-TTS，通过 REST 或 MCP 克隆音色、生成和下载配音"
+  default_prompt: "使用 $qwen3-tts-openai 部署或接入我的语音服务，选择已有音色，为文稿生成配音。"

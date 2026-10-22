@@ -24,6 +24,17 @@ python3.12 -m venv .venv
 
 测试覆盖文稿编译、SSML 子集、原文保留、音色条件隔离、缓存、真实音频后处理、持久化任务、HTTP 接口和模型进程超时。
 
+## Skill 验证
+
+```bash
+.venv/bin/pytest -q tests/test_skill.py
+python3 skills/qwen3-tts-openai/scripts/tts_skill.py --help
+```
+
+Skill 测试将完整副本安装到临时客户端目录，并从仓库之外、隔离 Python 导入路径的进程运行。隔离 HTTP 服务覆盖 MCP 初始化与工具发现、接口鉴权、预检、音色准备、配音提交、任务等待及 MP3/WAV 的大小与 SHA-256 校验；同时检查已编辑 Skill 和已有文件的保留、超时任务不被重复提交，以及下载重定向和损坏文件的处理。音频仍由受控测试后端生成，不作为真实 GPU 音质证据。
+
+首次部署按 [Skill 部署指南](../skills/qwen3-tts-openai/references/setup.md) 在兼容目标主机执行，保留部署提交和就绪检查结果；CPU 测试不代替镜像构建、模型下载与实际 GPU 验收。
+
 ## 浏览器流程
 
 浏览器测试通过 `tests.ui_server` 启动隔离服务，使用受控测试音调与独立数据目录。需要 Playwright 及 Chromium；运行脚本前先启动测试服务。

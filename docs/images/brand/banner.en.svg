@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="580" viewBox="0 0 1600 580" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Qwen3-TTS OpenAI · Voice cloning and director-script narration</title>
+  <desc id="desc">A light banner for a self-hosted voice studio. Reference audio and a director script feed Qwen3-TTS to produce downloadable MP3 and WAV narration. Reuse voices, plan pages and segments, and connect apps and agents.</desc>
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1600" y2="580" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCFDFB"/><stop offset="1" stop-color="#F3F8F4"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="1193" y1="240" x2="1484" y2="297" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#267B61"/><stop offset="1" stop-color="#74B69B"/>
+    </linearGradient>
+    <filter id="shadow" x="-.15" y="-.2" width="1.3" height="1.5" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#29543D" flood-opacity=".06"/>
+    </filter>
+    <clipPath id="canvas"><rect x="1" y="1" width="1598" height="578" rx="26"/></clipPath>
+  </defs>
+  <g clip-path="url(#canvas)">
+    <rect width="1600" height="580" fill="url(#paper)"/>
+    <circle cx="1395" cy="249" r="300" fill="#EBF4EC"/>
+    <circle cx="1395" cy="249" r="249" stroke="#DDEBE0"/>
+    <circle cx="1395" cy="249" r="202" stroke="#DDEBE0" stroke-dasharray="2 9"/>
+    <path d="M0 422C249 376 361 492 627 440" stroke="#E8F0E7" stroke-width="58"/>
+
+    <g font-family="Inter, Segoe UI, Arial, Noto Sans CJK SC, Microsoft YaHei, sans-serif">
+      <g transform="translate(73 46)" stroke="#267B61" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M0 5h9M0 14h11M0 23h9M12 14h3v9a3 3 0 0 0 6 0V5a3 3 0 0 1 6 0v13a3 3 0 0 0 6 0v-5"/>
+      </g>
+      <text x="123" y="68" fill="#244D3D" font-size="28" font-weight="650" letter-spacing="-.5">Qwen3-TTS OpenAI</text>
+      <text x="1527" y="64" fill="#5F7C6C" font-size="12" font-weight="500" letter-spacing="2" text-anchor="end">SCISAGA / OPEN SOURCE</text>
+
+      <text x="70" y="191" fill="#203C30" font-size="62" font-weight="700" letter-spacing="1">Clone a voice.</text>
+      <text x="70" y="271" fill="#267B61" font-size="62" font-weight="700" letter-spacing="1">Direct the narration.</text>
+      <text x="75" y="327" fill="#52695B" font-size="20">Save a reference clip as a reusable voice.</text>
+      <text x="75" y="362" fill="#52695B" font-size="20">Set pace, pitch, and pauses for every segment.</text>
+      <path d="M76 403h24" stroke="#267B61" stroke-width="2" stroke-linecap="round"/>
+      <text x="111" y="408" fill="#6B8072" font-size="14">Video narration · Lessons · Articles</text>
+
+      <g filter="url(#shadow)">
+        <rect x="770" y="130" width="245" height="124" rx="16" fill="white" stroke="#D9E6DC"/>
+        <rect x="770" y="284" width="245" height="124" rx="16" fill="white" stroke="#D9E6DC"/>
+        <rect x="1160" y="165" width="365" height="219" rx="20" fill="white" stroke="#BDD6C6"/>
+      </g>
+
+      <circle cx="801" cy="161" r="13" fill="#EDF5EF"/>
+      <g stroke="#467960" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="798" y="153" width="6" height="10" rx="3"/>
+        <path d="M795 160a6 6 0 0 0 12 0m-6 6v4m-3 0h6"/>
+      </g>
+      <text x="825" y="167" fill="#395B48" font-size="17" font-weight="600">Reference audio</text>
+      <path d="M797 207h190" stroke="#EDF2ED"/>
+      <g stroke="#7AA68E" stroke-width="4" stroke-linecap="round" transform="translate(0 93) scale(1 .55)">
+        <path d="M801 201v12m10-21v30m10-27v24m10-38v52m10-44v36m10-29v22m10-43v64m10-49v34m10-25v16m10-47v78m10-57v36m10-27v18m10-40v62m10-47v32m10-26v20m10-34v48m10-34v20m10-16v12m10-21v30"/>
+      </g>
+
+      <circle cx="801" cy="315" r="13" fill="#F3F2EB"/>
+      <g stroke="#887B56" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M795 308h12m-6 0v14m-4 0h8"/>
+      </g>
+      <text x="825" y="321" fill="#395B48" font-size="17" font-weight="600">Director script</text>
+      <text x="795" y="359" fill="#53695B" font-size="17">Pages · Pace · Pauses</text>
+      <path d="M796 380h139m12 0h37" stroke="#E5EBE5" stroke-width="4" stroke-linecap="round"/>
+
+      <path d="M1016 192h27a27 27 0 0 1 27 27v55m-54 72h27a27 27 0 0 0 27-27v-45m0 0h73" stroke="#A6C0AE" stroke-width="2"/>
+      <circle cx="1070" cy="274" r="15" fill="#F2F7F2" stroke="#B8CEBC"/>
+      <path d="M1065 274h10m-5-5v10" stroke="#62856C" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="m1137 269 6 5-6 5" stroke="#7A9C84" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="1090" y="313" fill="#6C8975" font-size="12" text-anchor="middle">Qwen3-TTS</text>
+
+      <text x="1185" y="202" fill="#254D3A" font-size="18" font-weight="600">Narration</text>
+      <rect x="1397" y="182" width="103" height="27" rx="13.5" fill="#EDF5EE"/>
+      <text x="1448" y="200" fill="#527B61" font-size="11" font-weight="600" letter-spacing=".5" text-anchor="middle">MP3 / WAV</text>
+      <path d="M1186 263h314" stroke="#EDF3ED"/>
+      <g stroke="url(#wave)" stroke-width="5" stroke-linecap="round">
+        <path d="M1193 257v12m11-22v32m11-27v22m11-39v56m11-43v30m11-22v14m11-44v74m11-57v40m11-31v22m11-56v90m11-66v42m11-32v22m11-43v64m11-49v34m11-24v14m11-45v76m11-57v38m11-30v22m11-41v60m11-46v32m11-23v14m11-34v54m11-40v26m11-19v12m11-28v44m11-32v20m11-15v10m11-19v28"/>
+      </g>
+      <path d="M1186 323h314" stroke="#E8EFE9"/>
+      <circle cx="1202" cy="352" r="13" fill="#267B61"/>
+      <path d="m1199 347 7 5-7 5v-10Z" fill="white"/>
+      <path d="M1230 352h136" stroke="#DDE9DF" stroke-width="3" stroke-linecap="round"/>
+      <path d="M1230 352h57" stroke="#71A98B" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="1287" cy="352" r="3.5" fill="#267B61"/>
+      <text x="1498" y="358" fill="#6B8572" font-size="13" text-anchor="end">Preview · Download</text>
+
+      <path d="M73 465h1454" stroke="#DCE6DD"/>
+      <g transform="translate(74 498)">
+        <rect width="37" height="37" rx="11" fill="#E5F0E7"/>
+        <path d="M10 17v3m5-10v17m5-13v9m5-11v13" stroke="#568169" stroke-width="2" stroke-linecap="round"/>
+        <text x="53" y="13" fill="#36533F" font-size="17" font-weight="600">Reusable reference voices</text>
+        <text x="53" y="37" fill="#728575" font-size="14">Clone once. Reuse across scripts.</text>
+      </g>
+      <path d="M520 498v38m532-38v38" stroke="#DDE6DE"/>
+      <g transform="translate(565 498)">
+        <rect width="37" height="37" rx="11" fill="#E5F0E7"/>
+        <g stroke="#568169" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="19" height="14" rx="2"/><path d="M18.5 23v5m-5 0h10m-10-12 3 3 6-6"/>
+        </g>
+        <text x="53" y="13" fill="#36533F" font-size="17" font-weight="600">Director scripts</text>
+        <text x="53" y="37" fill="#728575" font-size="14">Page exports · Segment previews</text>
+      </g>
+      <g transform="translate(1096 498)">
+        <rect width="37" height="37" rx="11" fill="#E5F0E7"/>
+        <path d="m14 12-6 6 6 6m9-12 6 6-6 6m-3-15-4 18" stroke="#568169" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="53" y="13" fill="#36533F" font-size="17" font-weight="600">Apps &amp; agents</text>
+        <text x="53" y="37" fill="#728575" font-size="14">OpenAI-compatible API · MCP · Skill</text>
+      </g>
+    </g>
+  </g>
+  <rect x=".5" y=".5" width="1599" height="579" rx="26" stroke="#D9E5DA"/>
+</svg>

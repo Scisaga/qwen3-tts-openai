@@ -1,4 +1,8 @@
 <p align="center">
+  <strong>简体中文</strong> · <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
   <img src="docs/images/brand/banner.svg" width="100%" alt="Qwen3-TTS OpenAI：用参考音色，为文字配音。参考录音与文稿生成可试听、下载的配音，支持本地部署和 OpenAI 兼容接入。">
 </p>
 

@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#f4f7f5">
   <title>Qwen3-TTS · 配音工作台</title>
   <link rel="icon" href="/static/favicon.svg?v=20261012-4">
-  <link rel="stylesheet" href="/static/app.css?v=20261023-typography-1">
+  <link rel="stylesheet" href="/static/app.css?v=20261025-microphone-1">
   <script src="/static/app.js?v=20261023-id-order-1" defer></script>
   <script src="/static/mcp.js?v=20261023-typography-1" defer></script>
-  <script src="/static/quick-clone.js?v=20261023-typography-1" defer></script>
+  <script src="/static/quick-clone.js?v=20261025-microphone-1" defer></script>
 </head>
 <body>
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -105,7 +105,9 @@
           <p class="hint" id="quick-recording-hint">在安静环境自然说一段话，建议 10–20 秒，最长 30 秒。</p>
           <div class="quick-context-note" id="quick-context-note" hidden><p id="quick-context-message"></p><div class="quick-context-actions" id="quick-secure-actions" hidden><a id="quick-secure-link">打开录音页面</a><a href="/static/local-ca.crt" id="quick-ca-link" download="qwen3-tts-local-ca.crt" hidden>下载内网证书</a></div><p id="quick-ca-hint" class="hint" hidden>首次使用请将证书导入电脑的受信任根证书，再打开录音页面并允许麦克风。</p></div>
           <label class="check"><input type="checkbox" id="quick-manual">手动填写文字<span class="hint">ASR 繁忙时可跳过等待</span></label>
+          <label id="quick-microphone-field" hidden>麦克风<select id="quick-microphone"><option value="">系统默认麦克风</option></select></label>
           <div class="quick-recording-controls"><button type="button" id="quick-record"><svg class="icon"><use href="#i-voice"/></svg><span id="quick-record-label">开始录音</span></button><button type="button" class="secondary" id="quick-stop" hidden>停止录音</button><span class="quick-timer" id="quick-timer" aria-label="录音时长">00:00</span><label class="file-label quick-file-label" id="quick-file-label">上传短录音<input type="file" id="quick-file" accept=".wav,.webm,.m4a,.mp4,.mp3,.ogg,.flac,audio/*" aria-label="上传快速复刻录音"></label></div>
+          <div class="quick-input-level" id="quick-input-level" hidden><meter id="quick-input-meter" min="0" max="1" value="0" aria-label="麦克风输入电平"></meter><span id="quick-input-status" role="status" aria-live="polite"></span></div>
           <audio id="quick-sample-preview" controls aria-label="快速复刻参考录音" hidden></audio>
           <div class="quick-status" id="quick-status" role="status" aria-live="polite">录音结束后会自动识别文字，也可以上传已有录音。</div>
           <div class="quick-draft-actions"><button type="button" class="link-button" id="quick-retry" disabled>重新识别文字</button><button type="button" class="link-button" id="quick-reset" disabled>清除录音</button></div>

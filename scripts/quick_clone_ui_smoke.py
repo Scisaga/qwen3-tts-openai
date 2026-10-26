@@ -34,6 +34,7 @@ def main(args):
           const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
           window.originalGetUserMedia = original;
           navigator.mediaDevices.getUserMedia = async options => {
+            window.recordedConstraints = options;
             const stream = await original(options); window.recordedTracks = stream.getTracks(); return stream;
           };
         })();""")
@@ -156,11 +157,48 @@ def main(args):
         expect(page.locator("#quick-status")).to_contain_text("麦克风权限未获允许")
         expect(page.locator("#quick-record")).to_be_enabled()
         workflows.append("microphone-denial")
+        # A granted but muted microphone must be detected before any ASR upload.
+        page.evaluate("""() => {
+            navigator.mediaDevices.getUserMedia = async options => {
+                const stream = await originalGetUserMedia(options);
+                window.recordedTracks = stream.getTracks();
+                stream.getAudioTracks().forEach(track => { track.enabled = false; });
+                return stream;
+            };
+        }""")
+        silent_uploads = []
+        def track_silent_upload(request):
+            if request.url.endswith("/v1/voices/references") and request.method == "POST":
+                silent_uploads.append(request.url)
+        page.on("request", track_silent_upload)
+        page.click("#quick-record")
+        expect(page.locator("#quick-input-level")).to_be_visible()
+        expect(page.locator("#quick-input-status")).to_contain_text("未检测到声音", timeout=6000)
+        expect(page.locator("#quick-microphone")).to_be_disabled()
+        page.screenshot(path=str(args.output / "microphone-silent-desktop.png"), full_page=True)
+        page.set_viewport_size({"width": 390, "height": 900})
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        page.screenshot(path=str(args.output / "microphone-silent-mobile.png"), full_page=True)
+        page.click("#quick-stop")
+        expect(page.locator("#quick-status")).to_contain_text("录音中没有检测到声音")
+        expect(page.locator("#quick-retry")).to_be_disabled()
+        expect(page.locator("#quick-create")).to_be_disabled()
+        assert page.evaluate("recordedTracks.every(track => track.readyState === 'ended')")
+        assert not silent_uploads
+        page.remove_listener("request", track_silent_upload)
+        page.set_viewport_size({"width": 1440, "height": 1000})
+        workflows.extend(["silent-microphone-feedback", "silent-recording-skips-asr", "silent-recording-releases-microphone"])
         page.evaluate(
-            "() => { navigator.mediaDevices.getUserMedia = async options => {const stream = await originalGetUserMedia(options); window.recordedTracks = stream.getTracks(); return stream;}; }"
+            "() => { navigator.mediaDevices.getUserMedia = async options => {window.recordedConstraints = options; const stream = await originalGetUserMedia(options); window.recordedTracks = stream.getTracks(); return stream;}; }"
         )
+        device = page.locator("#quick-microphone option").evaluate_all("options => options.map(option => option.value).filter(Boolean).at(-1)")
+        assert device
+        page.select_option("#quick-microphone", device)
         page.click("#quick-record")
         expect(page.locator("#quick-stop")).to_be_visible()
+        assert page.evaluate("recordedConstraints.audio.deviceId.exact") == device
+        expect(page.locator("#quick-input-status")).to_have_text("已检测到声音", timeout=5000)
+        workflows.append("selected-microphone-captures-audio")
         page.click("#voice-tab-upload")
         assert page.evaluate("recordedTracks.every(track => track.readyState === 'ended')")
         expect(page.locator("#voice-upload-card")).to_be_visible()

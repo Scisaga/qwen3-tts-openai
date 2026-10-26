@@ -280,11 +280,11 @@ class SynthesisService:
             check()
             self.jobs.progress(ident, .01, {"stage": "preparing"})
             if job["kind"] == "model_preload":
-                self.backend.preload()
+                self.backend.preload(check=check)
                 check()
                 self.jobs.finish(ident, "succeeded", {"model": self.backend.provenance()})
             elif job["kind"] == "voice_prepare":
-                result = self.backend.prepare(job["request"]["voice"])
+                result = self.backend.prepare(job["request"]["voice"], check=check)
                 check()
                 voice = job["request"]["voice"]
                 self.voices.preparation_finished(voice, details=result)
@@ -296,7 +296,7 @@ class SynthesisService:
                 check()
                 self.jobs.finish(ident, "succeeded", result)
         except Cancelled:
-            self.jobs.finish(ident, "cancelled", error={"type": "cancelled", "message": "Cancelled at a safe generation/processing boundary"})
+            self.jobs.finish(ident, "cancelled", error={"type": "cancelled", "message": "Job cancelled; active model work has stopped"})
             if job["kind"] == "voice_prepare":
                 self.voices.preparation_finished(job["request"]["voice"], {"type": "cancelled", "message": "Reference preparation cancelled; retry explicitly"})
         except Exception as e:
@@ -355,7 +355,7 @@ class SynthesisService:
             check()
             progress.update(index, {"stage": "preparing"})
             # Model identity is resolved before cache lookup; a moving revision cannot reuse stale audio.
-            self.backend.ensure_generation(unit["voice_snapshot"])
+            self.backend.ensure_generation(unit["voice_snapshot"], check=check)
             provenance = self.backend.provenance()
             voice = unit["voice_snapshot"]
             voice_projection = {k: voice.get(k) for k in ("reference", "ref_text", "mode", "model", "preset")}
@@ -366,7 +366,7 @@ class SynthesisService:
                 temp = raw.with_suffix(".tmp.wav")
                 try:
                     stats = self.backend.generate(unit, generation, plan["language"], temp,
-                                                  progress=lambda event: progress.update(index, event))
+                                                  progress=lambda event: progress.update(index, event), check=check)
                     check()
                     if temp.stat().st_size > self.settings.max_output_bytes or sf.info(temp).duration > self.settings.max_audio_seconds:
                         raise ServiceError("output_limit", "Generated audio exceeds output limits", 413)

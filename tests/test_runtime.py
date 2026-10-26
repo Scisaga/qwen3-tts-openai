@@ -9,7 +9,7 @@ import pytest
 
 from qwen3_tts_openai.backends.runtime import ModelRuntime, model_process
 from qwen3_tts_openai.config import Settings
-from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.errors import Cancelled, ServiceError
 from qwen3_tts_openai.backends.qwen import OfficialQwen
 
 
@@ -23,6 +23,121 @@ def graph_failure(connection):
     connection.send({"ok": False, "error": {"type": "cuda_graph_failed", "message": "controlled capture failure"},
                      "http_status": 503, "status": {"inference_engine": "cuda-graph-predictor"}})
     time.sleep(10)
+
+
+def cancellable_holder(connection, active, emit_progress):
+    connection.recv()
+    active.set()
+    if emit_progress:
+        while True:
+            connection.send({"event": "progress", "progress": {"stage": "synthesizing"}})
+            time.sleep(.02)
+    else:
+        time.sleep(10)
+        connection.send({"ok": True, "result": "stale cancelled reply", "status": {}})
+
+
+def reply_holder(connection):
+    command, arguments = connection.recv()
+    connection.send({"ok": True, "result": {"command": command, "arguments": arguments}, "status": {}})
+    connection.close()
+
+
+@pytest.mark.parametrize("emit_progress", [False, True])
+def test_rpc_cancellation_stops_owned_holder_without_leaking_into_next_job(settings, emit_progress):
+    runtime = ModelRuntime(settings)
+    context = multiprocessing.get_context("spawn")
+    active = context.Event()
+    runtime.connection, child = context.Pipe()
+    runtime.process = context.Process(target=cancellable_holder, args=(child, active, emit_progress))
+    runtime.process.start()
+    child.close()
+    owned = runtime.process
+    observed = []
+    cancelled = Cancelled()
+
+    def check():
+        if (emit_progress and observed) or (not emit_progress and active.is_set()):
+            raise cancelled
+
+    try:
+        with pytest.raises(Cancelled) as caught:
+            runtime._rpc("generate", {}, 5, progress=observed.append, check=check)
+        assert caught.value is cancelled
+        assert owned._closed and runtime.process is None and runtime.connection is None
+        assert runtime.health["state"] == "unloaded"
+        if emit_progress:
+            assert observed == [{"stage": "synthesizing"}]
+
+        runtime.connection, child = context.Pipe()
+        runtime.process = context.Process(target=reply_holder, args=(child,))
+        runtime.process.start()
+        child.close()
+        result = runtime._rpc("generate", {"job": "next job"}, 5)
+        assert result == {"command": "generate", "arguments": {"job": "next job"}}
+        assert runtime.health["state"] == "ready"
+    finally:
+        runtime.stop()
+
+
+def test_rpc_checks_cancellation_before_creating_holder(settings, monkeypatch):
+    runtime = ModelRuntime(settings)
+
+    def unexpected_spawn(*args):
+        pytest.fail("Cancelled work must not create a model holder")
+
+    def check():
+        raise Cancelled()
+
+    monkeypatch.setattr(multiprocessing, "get_context", unexpected_spawn)
+    with pytest.raises(Cancelled):
+        runtime._rpc("select", {}, 5, check=check)
+    assert runtime.process is None and runtime.connection is None
+
+
+def test_rpc_checks_cancellation_before_accepting_final_reply(settings):
+    runtime = ModelRuntime(settings)
+    state = {"reply_received": False, "stopped": False}
+
+    def receive():
+        state["reply_received"] = True
+        return {"ok": True, "result": "cancelled result", "status": {}}
+
+    runtime.process = SimpleNamespace(is_alive=lambda: True)
+    runtime.connection = SimpleNamespace(send=lambda request: None, poll=lambda timeout: True,
+                                         recv=receive)
+    runtime.stop = lambda: state.update(stopped=True)
+
+    def check():
+        if state["reply_received"]:
+            raise Cancelled()
+
+    with pytest.raises(Cancelled):
+        runtime._rpc("prepare", {}, 5, check=check)
+    assert state["reply_received"] and state["stopped"]
+    assert runtime.health["state"] != "ready"
+
+
+@pytest.mark.parametrize("backend", ["qwen-base", "qwen-combined-experimental"])
+def test_runtime_forwards_job_check_to_loading_preparation_and_generation(settings, backend):
+    runtime = ModelRuntime(settings.model_copy(update={"backend": backend}))
+    calls = []
+    def check():
+        pass
+
+    def rpc(command, arguments, timeout, progress=None, check=None):
+        calls.append((command, arguments, check))
+        return {"model": "test-model"}
+
+    runtime._rpc = rpc
+    runtime.preload(check=check)
+    runtime.prepare({"voice_id": "test"}, check=check)
+    runtime.ensure_generation({"voice_id": "test"}, check=check)
+    runtime.generate({}, {}, "Chinese", "test.wav", check=check)
+    assert all(call[2] is check for call in calls)
+    assert [call[0] for call in calls] == (["select", "select", "prepare", "select", "generate"]
+                                          if backend == "qwen-base"
+                                          else ["select", "select", "prepare", "prepare", "select", "generate"])
 
 
 def test_watchdog_only_terminates_owned_model_process(settings):

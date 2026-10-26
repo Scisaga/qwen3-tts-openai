@@ -187,6 +187,30 @@ def test_browser_and_uploaded_formats_are_normalized(settings, sample, extension
         assert draft["reference"]["sample_rate"] == 24000 and draft["reference"]["channels"] == 1
 
 
+@pytest.mark.parametrize("extension", ["wav", "webm"])
+def test_silent_recording_explains_microphone_input_before_asr(settings, sample, extension):
+    sf.write(sample, np.zeros(48000), 24000, subtype="PCM_16")
+    def asr(request):
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"backend_ready": True})
+        pytest.fail("无声录音不应发送给 ASR")
+    app = quick_app(settings, asr)
+    source = sample
+    if extension == "webm":
+        source = sample.with_suffix(".webm")
+        app.state.service.audio.run(
+            [settings.ffmpeg_bin, "-nostdin", "-v", "error", "-y", "-i", str(sample), "-c:a", "libopus", str(source)]
+        )
+    with TestClient(app) as client:
+        response = stage(client, source)
+        assert response.status_code == 422, response.text
+        assert response.json()["error"]["type"] == "invalid_audio"
+        assert "没有检测到声音" in response.json()["error"]["message"]
+        assert "切换麦克风" in response.json()["error"]["message"]
+        assert not list(app.state.service.references.root.iterdir())
+        assert app.state.service.voices.list() == []
+
+
 @pytest.mark.parametrize("kind", ["empty", "corrupt", "archive", "silent", "short", "long", "durationless_long"])
 def test_invalid_recordings_leave_no_draft_or_voice(settings, sample, kind):
     filename = "input.wav"

@@ -131,7 +131,7 @@ function bind(id, callback) { $(id).addEventListener("click", () => run(callback
 async function run(callback, button) {
   if (button) button.disabled = true;
   try { await callback(); } catch (e) { if (e.details?.units) renderPlan(e.details); notice(e.message, true); }
-  finally { if (button) button.disabled = false; updateGenerationAvailability(); }
+  finally { if (button) button.disabled = button.id === "cancel-button" && !!state.job?.cancel_requested; updateGenerationAvailability(); }
 }
 function parseObjectJSON(source, label) {
   const raw = source.replace(/^\uFEFF/, "");
@@ -262,9 +262,14 @@ async function voices() {
     const anchor = menu.querySelector("summary").getBoundingClientRect(), height = menu.querySelector(".voice-menu-items").offsetHeight;
     menu.classList.toggle("open-up", innerHeight - anchor.bottom < height + 8 && anchor.top > height + 8);
   }));
+  let samplePlayback = 0;
   $("voice-list").querySelectorAll("[data-sample]").forEach(b => b.onclick = () => run(async () => {
+    const playback = ++samplePlayback;
+    $("voice-list").querySelectorAll(".sample-slot audio").forEach(audio => audio.pause());
     const slot = b.closest(".voice-item").querySelector(".sample-slot"); slot.innerHTML = '<audio controls aria-label="原始参考录音"></audio>';
-    await playUrl(slot.querySelector("audio"), `/v1/voices/${b.dataset.sample}/sample`);
+    const audio = slot.querySelector("audio");
+    await playUrl(audio, `/v1/voices/${b.dataset.sample}/sample`);
+    if (playback === samplePlayback && audio.isConnected) await audio.play();
   }, b));
   $("voice-list").querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
     const v = state.voices.find(x => x.voice_id === b.dataset.edit); state.editId = v.voice_id;
@@ -375,6 +380,7 @@ async function selectJob(ident, {history: recordHistory = true} = {}) {
 function formatDate(seconds) { return new Date(seconds * 1000).toLocaleString("zh-CN", {timeZone:"Asia/Shanghai",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}); }
 function progressText(job) {
   const detail = job.progress_detail;
+  if (job.cancel_requested && job.status === "running") return "正在停止任务并释放资源";
   if (!detail || job.status !== "running") return "";
   const names = {preparing:"准备模型与音色", synthesizing:"生成音频", postprocessing:"处理语速与音量", unit_complete:"片段已生成", assembling:"拼接音频", encoding:"编码音频", saving:"保存产物"};
   const parts = [names[detail.stage] || "执行中"];
@@ -388,8 +394,10 @@ async function pollJob() {
   try {
     const job = await json(`/v1/jobs/${state.jobId}`);
     if (job.job_id !== state.jobId) return;
-    $("active-job").textContent = `${jobNames[job.status] || job.status} · ${job.job_id}${job.cancel_requested && job.status === "running" ? "\n已请求取消，等待安全边界" : ""}`;
-    $("job-status").textContent = jobNames[job.status] || job.status;
+    const cancelling = job.cancel_requested && job.status === "running";
+    const statusText = cancelling ? "取消中" : jobNames[job.status] || job.status;
+    $("active-job").textContent = `${statusText} · ${job.job_id}`;
+    $("job-status").textContent = statusText;
     $("job-status").className = "badge " + (job.status === "succeeded" ? "ready" : job.status === "failed" ? "failed" : job.status === "running" ? "warning" : "");
     $("job-kind").textContent = kindNames[job.kind] || job.kind;
     $("job-percentage").textContent = job.status === "failed" || job.status === "cancelled" ? "—" : `${job.progress_detail?.estimated && job.status === "running" ? "约 " : ""}${Math.round(job.progress * 100)}%`;
@@ -399,9 +407,10 @@ async function pollJob() {
     $("job-time").textContent = `提交于 ${formatDate(job.created_at)}`;
     $("cancel-button").hidden = !["queued","running"].includes(job.status);
     $("cancel-button").disabled = !!job.cancel_requested;
+    $("cancel-button").textContent = cancelling ? "正在取消…" : "取消任务";
     $("task-indicator").hidden = false; $("task-indicator").className = "task-indicator " + (job.status === "failed" ? "failed" : "");
     $("step-audio").classList.toggle("done", job.status === "succeeded");
-    $("job-error").hidden = !job.error;
+    $("job-error").hidden = !job.error || job.status === "cancelled";
     if (job.error) $("job-error").innerHTML = `<strong>${job.error.type === "gpu_unavailable" ? "GPU 不可用，未生成音频" : "任务执行失败"}</strong>${esc(job.error.message)}<br><small>${esc(job.error.type)}</small>`;
     const previous = state.job?.status; state.job = job;
     if (job.status === "succeeded" && previous !== "succeeded") {

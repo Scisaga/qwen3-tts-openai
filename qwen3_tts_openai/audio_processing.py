@@ -72,8 +72,12 @@ class AudioProcessor:
             if not 8000 <= info.samplerate <= 96000 or not 1 <= info.channels <= 2:
                 raise ServiceError("invalid_audio", "Reference requires 8-96kHz, mono or stereo")
             audio, rate = sf.read(source, dtype="float32", always_2d=True)
-            if len(audio) != info.frames or not np.isfinite(audio).all() or float(np.max(np.abs(audio))) < 1e-5:
-                raise ServiceError("invalid_audio", "Reference is truncated, non-finite or silent")
+            if len(audio) != info.frames:
+                raise ServiceError("invalid_audio", "录音文件不完整，请重新录制或上传完整音频。", 422)
+            if not np.isfinite(audio).all():
+                raise ServiceError("invalid_audio", "录音包含无效采样，请重新录制或上传有效音频。", 422)
+            if float(np.max(np.abs(audio))) < 1e-5:
+                raise ServiceError("invalid_audio", "录音中没有检测到声音，请检查麦克风是否静音或切换麦克风后重新录音。", 422)
             sf.write(processed, audio.mean(axis=1), rate, subtype="PCM_16")
             return {"duration_seconds": info.duration, "sample_rate": rate, "channels": info.channels, "original_sha256": file_hash(source), "processed_sha256": file_hash(processed), "preprocessing_version": REFERENCE_VERSION}
         except (RuntimeError, sf.LibsndfileError, ValueError) as e:

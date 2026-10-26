@@ -2,7 +2,7 @@
 (() => {
   const qc = {draft:null, file:null, filename:"", previewUrl:null, resultUrl:null, recorder:null, stream:null,
     timer:null, started:0, starting:false, busy:false, creating:false, auditioning:false, voiceId:null,
-    ready:false, sequence:0, controller:null, auditionJob:null};
+    ready:false, sequence:0, controller:null, auditionJob:null, monitor:null, microphonesLoaded:false, silent:false};
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
   const terminal = status => ["succeeded", "failed", "cancelled"].includes(status);
   const feature = () => state.health?.features?.quick_voice_clone;
@@ -30,6 +30,10 @@
     const localCa = !!feature()?.https_local_ca;
     $("quick-ca-link").hidden = !localCa; $("quick-ca-hint").hidden = window.isSecureContext || !httpsUrl || !localCa;
     const locked = qc.busy || qc.creating || qc.auditioning;
+    const microphonePicker = enabled && canRecord() && typeof navigator.mediaDevices.enumerateDevices === "function";
+    $("quick-microphone-field").hidden = !microphonePicker;
+    $("quick-microphone").disabled = locked || qc.starting || recording();
+    if (microphonePicker && !qc.microphonesLoaded) { qc.microphonesLoaded = true; refreshMicrophones(); }
     const expired = qc.draft && qc.draft.expires_at * 1000 <= Date.now();
     const openSecurePage = !window.isSecureContext && !!httpsUrl;
     $("quick-record").disabled = !enabled || (!canRecord() && !openSecurePage) || locked || qc.starting;
@@ -37,7 +41,7 @@
     $("quick-record-label").textContent = openSecurePage ? "打开录音页面" : qc.starting ? "等待麦克风…" : qc.file ? "重新录音" : "开始录音";
     $("quick-file").disabled = !enabled || locked || qc.starting || recording();
     $("quick-file-label").classList.toggle("disabled", $("quick-file").disabled);
-    $("quick-retry").disabled = !enabled || (!qc.draft && !qc.file) || locked || recording() || qc.starting || !!qc.voiceId;
+    $("quick-retry").disabled = !enabled || (!qc.draft && !qc.file) || qc.silent || locked || recording() || qc.starting || !!qc.voiceId;
     $("quick-reset").disabled = qc.creating || !(qc.draft || qc.file || qc.starting || recording());
     $("quick-name").disabled = qc.creating;
     $("quick-voice-id").disabled = qc.creating || !!qc.voiceId;
@@ -51,8 +55,43 @@
     $("quick-audition").textContent = qc.auditioning ? "正在生成试听…" : "用新句子试听";
     $("quick-use").disabled = !qc.ready;
   }
+  async function refreshMicrophones(activeDevice = "") {
+    try {
+      const devices = (await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === "audioinput" && device.deviceId);
+      const select = $("quick-microphone"), selected = activeDevice || select.value;
+      select.replaceChildren(new Option("系统默认麦克风", ""), ...devices.map((device, index) => new Option(device.label || `麦克风 ${index + 1}`, device.deviceId)));
+      select.value = devices.some(device => device.deviceId === selected) ? selected : "";
+    } catch { $("quick-microphone-field").hidden = true; }
+  }
+  function monitorMicrophone(stream) {
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) return;
+    const context = new Context(), source = context.createMediaStreamSource(stream), analyser = context.createAnalyser();
+    analyser.fftSize = 2048; source.connect(analyser);
+    qc.monitor = {context, source, analyser, samples:new Float32Array(analyser.fftSize), reads:0, signal:false};
+    $("quick-input-level").hidden = false; $("quick-input-meter").value = 0;
+    $("quick-input-status").textContent = "等待麦克风输入…"; $("quick-input-status").className = "";
+    context.resume().catch(() => { $("quick-input-status").textContent = "暂时无法读取输入电平，请在录音后回听。"; });
+  }
+  function updateInputLevel() {
+    const monitor = qc.monitor;
+    if (!monitor || monitor.context.state !== "running") return;
+    monitor.analyser.getFloatTimeDomainData(monitor.samples); monitor.reads++;
+    let peak = 0, sum = 0;
+    for (const sample of monitor.samples) { peak = Math.max(peak, Math.abs(sample)); sum += sample * sample; }
+    monitor.signal ||= peak >= 1e-5;
+    $("quick-input-meter").value = Math.min(1, Math.sqrt(sum / monitor.samples.length) * 12);
+    const missing = !monitor.signal && performance.now() - qc.started >= 3000;
+    const message = monitor.signal ? "已检测到声音" : missing ? "未检测到声音，请检查静音或切换麦克风。" : "等待麦克风输入…";
+    if ($("quick-input-status").textContent !== message) $("quick-input-status").textContent = message;
+    $("quick-input-status").className = missing ? "failed" : "";
+  }
   function stopTracks() {
     if (qc.timer) clearInterval(qc.timer); qc.timer = null;
+    if (qc.monitor) {
+      qc.monitor.source.disconnect(); qc.monitor.context.close().catch(() => {}); qc.monitor = null;
+    }
+    $("quick-input-level").hidden = true;
     qc.stream?.getTracks().forEach(track => track.stop()); qc.stream = null;
     $("quick-timer").classList.remove("recording");
   }
@@ -82,7 +121,7 @@
     if (recording()) qc.recorder.stop(); qc.recorder = null; qc.starting = false; stopTracks();
     if (qc.auditionJob) json(`/v1/jobs/${qc.auditionJob}/cancel`, {method:"POST"}).catch(() => {});
     qc.auditionJob = null; discardDraft(); clearPreview(); clearResult();
-    qc.file = null; qc.filename = ""; qc.busy = false; qc.auditioning = false;
+    qc.file = null; qc.filename = ""; qc.busy = false; qc.auditioning = false; qc.silent = false;
     $("quick-file").value = ""; $("quick-ref-text").value = ""; $("quick-timer").textContent = "00:00";
     status("录音结束后会自动识别文字，也可以上传已有录音。"); refresh();
   }
@@ -103,7 +142,7 @@
       status("录音文件过大，请选择更短的录音。", true); return;
     }
     qc.sequence++; const sequence = qc.sequence;
-    qc.controller?.abort(); discardDraft(); clearResult(); qc.file = file; qc.filename = filename;
+    qc.controller?.abort(); discardDraft(); clearResult(); qc.file = file; qc.filename = filename; qc.silent = false;
     qc.controller = new AbortController(); qc.busy = true;
     if (!preserveText) $("quick-ref-text").value = "";
     const previousText = $("quick-ref-text").value;
@@ -144,25 +183,34 @@
     let stream;
     try {
       document.querySelectorAll("audio").forEach(audio => audio.pause());
-      stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1}});
+      const deviceId = $("quick-microphone").value;
+      stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1, ...(deviceId ? {deviceId:{exact:deviceId}} : {})}});
       if (sequence !== qc.sequence || $("view-voices").hidden) { stream.getTracks().forEach(track => track.stop()); return; }
       const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find(type => MediaRecorder.isTypeSupported(type));
       const recorder = new MediaRecorder(stream, mime ? {mimeType:mime} : {}), chunks = [];
       qc.stream = stream; qc.recorder = recorder; qc.starting = false; qc.started = performance.now();
+      monitorMicrophone(stream); refreshMicrophones(stream.getAudioTracks()[0]?.getSettings().deviceId);
       recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
       recorder.onerror = () => { if (sequence === qc.sequence) { reset(); status("录音中断，请检查麦克风后重试。", true); } };
       recorder.onstop = () => {
+        if (sequence === qc.sequence) updateInputLevel();
+        const silent = qc.monitor?.reads > 0 && !qc.monitor.signal;
         stream.getTracks().forEach(track => track.stop()); if (sequence !== qc.sequence) return;
         stopTracks();
         qc.recorder = null;
         const type = recorder.mimeType || mime || "audio/webm", extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
         const blob = new Blob(chunks, {type});
         if (!blob.size) { status("未收到录音，请检查麦克风后重新录制。", true); refresh(); return; }
+        if (silent) {
+          qc.file = blob; qc.filename = `recording.${extension}`; qc.silent = true; preview(blob);
+          status("录音中没有检测到声音，请检查麦克风是否静音或切换麦克风后重新录音。", true); refresh(); return;
+        }
         upload(blob, `recording.${extension}`);
       };
       recorder.start(250); $("quick-timer").classList.add("recording");
       status("正在录音，自然说一段完整的话，结束后点击停止。");
       qc.timer = setInterval(() => {
+        updateInputLevel();
         const elapsed = (performance.now() - qc.started) / 1000;
         $("quick-timer").textContent = `00:${String(Math.floor(elapsed)).padStart(2, "0")}`;
         if (elapsed >= (feature()?.max_reference_seconds || 30) - .25 && recorder.state === "recording") recorder.stop();
@@ -171,7 +219,9 @@
       stream?.getTracks().forEach(track => track.stop());
       if (sequence === qc.sequence) {
         qc.starting = false; qc.recorder = null; stopTracks();
-        status(error.name === "NotAllowedError" ? "麦克风权限未获允许，请在浏览器中允许录音，或上传短录音。" : "无法开启麦克风，请检查设备后重试，或上传短录音。", true);
+        status(error.name === "NotAllowedError" ? "麦克风权限未获允许，请在浏览器中允许录音，或上传短录音。"
+          : ["NotFoundError", "OverconstrainedError"].includes(error.name) ? "选择的麦克风不可用，请重新选择输入设备后重试。"
+          : "无法开启麦克风，请检查设备后重试，或上传短录音。", true);
       }
     } finally { refresh(); }
   }
@@ -257,6 +307,7 @@
     else refresh();
   };
   $("quick-name").oninput = refresh; $("quick-ref-text").oninput = refresh;
+  if (canRecord()) navigator.mediaDevices.addEventListener("devicechange", () => refreshMicrophones());
   $("quick-clone-form").onsubmit = event => { event.preventDefault(); create(); };
   $("quick-audition").onclick = audition;
   $("copy-quick-voice-id").onclick = () => copyVoiceId(qc.voiceId, $("quick-result-voice-id"));

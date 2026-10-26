@@ -56,7 +56,7 @@ def model_process(connection, values):
 class ModelRuntime:
     """One owned child, called only by the single durable-queue worker.
 
-    The child holds all GPU state. A timeout terminates this child only; the next request
+    The child holds all GPU state. Cancellation or timeout terminates only this child; the next request
     creates a fresh holder. HTTP remains available during import/download/load/generation.
     """
     def __init__(self, settings: Settings):
@@ -66,7 +66,18 @@ class ModelRuntime:
         self._guard = threading.Lock()
         self.conditioning_identity = None
 
-    def _rpc(self, command, arguments, timeout, progress=None):
+    def _rpc(self, command, arguments, timeout, progress=None, check=None):
+        def checkpoint():
+            if check:
+                try:
+                    check()
+                except Exception:
+                    # Only the queue worker interrupts its own RPC. Discard the
+                    # holder and pipe together so no late reply reaches another job.
+                    self.stop()
+                    raise
+
+        checkpoint()
         if not self.process or not self.process.is_alive():
             context = multiprocessing.get_context("spawn")
             self.connection, child = context.Pipe()
@@ -76,12 +87,14 @@ class ModelRuntime:
         self.connection.send((command, arguments))
         started = time.monotonic()
         while time.monotonic() - started < timeout:
+            checkpoint()
             if self.connection.poll(0.1):
                 try:
                     reply = self.connection.recv()
                 except EOFError as e:
                     self.health.update(state="failed", error="Model holder exited unexpectedly")
                     raise ServiceError("model_process_failed", "Model holder exited; inspect process logs", 503) from e
+                checkpoint()
                 if reply.get("event") == "progress":
                     if progress:
                         try:
@@ -104,38 +117,39 @@ class ModelRuntime:
             if not self.process.is_alive():
                 self.health.update(state="failed", error="Model holder exited unexpectedly")
                 raise ServiceError("model_process_failed", "Model holder exited; inspect process logs", 503)
+        checkpoint()
         self.stop()
         self.health.update(state="failed", error=f"{command} exceeded {timeout:g} seconds")
         raise ServiceError("model_timeout", f"Model {command} timed out. The owned holder was restarted; shorten the input or adjust the relevant timeout", 504)
 
-    def select(self, kind):
+    def select(self, kind, check=None):
         if self.health.get("loaded_kind") != kind or self.health["state"] != "ready":
             self.health["state"] = "loading"
-            self._rpc("select", {"kind": kind}, self.settings.model_load_timeout_seconds)
+            self._rpc("select", {"kind": kind}, self.settings.model_load_timeout_seconds, check=check)
 
-    def preload(self):
-        self.select("expression" if self.settings.backend == "qwen-combined-experimental" else "base")
+    def preload(self, check=None):
+        self.select("expression" if self.settings.backend == "qwen-combined-experimental" else "base", check=check)
 
     def provenance(self):
         identity = self.health.get("identity", {})
         stable = {k: v for k, v in identity.items() if k not in {"load_seconds", "loaded_memory_bytes"}}
         return {"backend": self.settings.backend, "identity": stable, "conditioning_identity": self.conditioning_identity, "dtype": self.settings.dtype, "attention": self.settings.attn_implementation, "capabilities": self.capabilities}
 
-    def prepare(self, voice):
-        self.select("base")
-        return self._rpc("prepare", {"voice": voice}, self.settings.generation_timeout_seconds)
+    def prepare(self, voice, check=None):
+        self.select("base", check=check)
+        return self._rpc("prepare", {"voice": voice}, self.settings.generation_timeout_seconds, check=check)
 
-    def ensure_generation(self, voice=None):
+    def ensure_generation(self, voice=None, check=None):
         if self.settings.backend == "qwen-combined-experimental":
             # Prepare returns a disk cache entry, so only CustomVoice remains resident for generation.
-            prepared = self._rpc("prepare", {"voice": voice}, self.settings.model_load_timeout_seconds + self.settings.generation_timeout_seconds)
+            prepared = self._rpc("prepare", {"voice": voice}, self.settings.model_load_timeout_seconds + self.settings.generation_timeout_seconds, check=check)
             self.conditioning_identity = {"model": prepared["model"], "mode": "x_vector_only"}
-            self.select("expression")
+            self.select("expression", check=check)
         else:
-            self.select("base")
+            self.select("base", check=check)
 
-    def generate(self, unit, generation, language, target, progress=None):
-        return self._rpc("generate", {"unit": unit, "generation": generation, "language": language, "target": str(target)}, self.settings.generation_timeout_seconds, progress)
+    def generate(self, unit, generation, language, target, progress=None, check=None):
+        return self._rpc("generate", {"unit": unit, "generation": generation, "language": language, "target": str(target)}, self.settings.generation_timeout_seconds, progress, check=check)
 
     def stop(self):
         with self._guard:

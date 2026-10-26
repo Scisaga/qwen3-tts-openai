@@ -101,6 +101,8 @@ h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: .5px; line-height: 1.4
 .quick-recording-controls, .quick-draft-actions, .quick-result-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .quick-timer { font-variant-numeric: tabular-nums; color: var(--muted); }
 .quick-timer.recording { color: var(--red); }
+.quick-input-level { display: flex; align-items: center; gap: 10px; font-size: var(--font-sm); color: var(--muted); }
+.quick-input-level meter { width: 100px; height: 14px; flex-shrink: 0; accent-color: var(--accent); }
 .quick-file-label { margin-left: auto; }
 .quick-file-label.disabled { pointer-events: none; opacity: .45; }
 .quick-context-note { margin: 0; padding: 8px 10px; border: 1px solid var(--border); background: var(--panel-raised); font-size: var(--font-sm); color: var(--muted); }
@@ -135,7 +137,8 @@ textarea.short { min-height: 110px; }
 textarea.tiny { min-height: 82px; }
 .voice-picker { display: flex; align-items: flex-end; gap: 8px; padding: 12px 16px; }
 .voice-picker label { flex: 1; min-width: 0; }
-.voice-picker button { height: 42px; padding: 6px 9px; font-size: var(--font-sm); }
+.voice-picker select, .voice-picker button { height: 34px; }
+.voice-picker button { padding: 5px 9px; font-size: var(--font-sm); }
 .voice-picker .link-button { padding-inline: 2px; }
 .voice-picker .icon { width: 14px; height: 14px; }
 .selected-voice-preview { width: calc(100% - 32px); margin: 0 16px 10px; }

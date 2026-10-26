@@ -24,7 +24,7 @@ class ControlledBackend:
         self.delay, self.preload_gate = delay, preload_gate
         self.generating = threading.Event()
 
-    def preload(self):
+    def preload(self, check=None):
         self.health["state"] = "loading"
         if self.preload_gate:
             self.preload_gate.wait(10)
@@ -34,18 +34,18 @@ class ControlledBackend:
         if self.preload_gate:
             self.preload_gate.set()
 
-    def prepare(self, voice):
+    def prepare(self, voice, check=None):
         self.preparations.append(voice)
         self.health["state"] = "ready"
         return {"model_source": "controlled-test-tone", "key": digest(voice), "mode": voice["mode"]}
 
-    def ensure_generation(self, voice):
+    def ensure_generation(self, voice, check=None):
         self.health["state"] = "ready"
 
     def provenance(self):
         return {"model_source": "controlled-test-tone", "revision": "test-v1"}
 
-    def generate(self, unit, generation, language, target, progress=None):
+    def generate(self, unit, generation, language, target, progress=None, check=None):
         self.calls.append({"unit": unit, "generation": generation, "language": language})
         self.generating.set()
         time.sleep(self.delay)

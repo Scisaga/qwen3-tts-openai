@@ -120,10 +120,12 @@ class ProgressBackend(ControlledBackend):
         self.progress_snapshots = []
         self.observe = None
 
-    def generate(self, unit, generation, language, target, progress=None):
+    def generate(self, unit, generation, language, target, progress=None, check=None):
         started = time.monotonic()
         with sf.SoundFile(target, "w", samplerate=24000, channels=1, subtype="PCM_16") as audio:
             for frame in range(100):
+                if check:
+                    check()
                 samples = np.arange(frame * 1920, (frame + 1) * 1920)
                 audio.write(.1 * np.sin(samples * 2 * np.pi * 440 / 24000))
                 if progress:

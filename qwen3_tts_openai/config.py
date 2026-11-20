@@ -34,6 +34,7 @@ class Settings(BaseModel):
     queue_limit: int = Field(8, ge=1, le=100)
     max_upload_bytes: int = Field(20 * 1024 * 1024, ge=1024)
     max_request_bytes: int = Field(22 * 1024 * 1024, ge=1024)
+    max_voice_archive_bytes: int = Field(256 * 1024 * 1024, ge=1024)
     max_reference_seconds: float = Field(30, ge=1, le=300)
     max_text_chars: int = Field(30000, ge=1)
     max_unit_chars: int = Field(240, ge=8, le=2000)

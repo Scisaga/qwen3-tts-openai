@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
 const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const state = {view:"studio", panel:"plan", routeJobId:null, mode:"text", voices:[], plan:null, planRequest:null, planStale:false, submitting:false, jobId:null, editId:null, audioUrls:[], job:null, polling:false, health:null, sampleUrl:null, voicePreviewUrl:null, previewVoiceId:null, uploadFromStudio:false, voiceEntry:null};
+state.selectedVoices = new Set(); state.voiceBusy = false; state.deleteVoiceIds = [];
 const views = {studio:["配音工作台", "让每一段文字，都有合适的声音。"], voices:["音色管理", "保存参考录音，为每一次配音选择声音。"], jobs:["任务与产物", "查看生成记录，回听与下载已完成的音频。"], mcp:["MCP 接入", "连接智能体，复用本地音色、导演稿与配音任务。"], runtime:["运行状态", "查看模型就绪状态、计算设备与控制能力。"]};
 const viewPaths = {studio:"/studio", voices:"/voices", jobs:"/jobs", mcp:"/integrations/mcp", runtime:"/runtime"};
 const jobNames = {queued:"排队中", running:"执行中", succeeded:"已完成", failed:"失败", cancelled:"已取消"};
@@ -246,14 +247,27 @@ async function health() {
 }
 async function voices() {
   const result = await json("/v1/voices"); state.voices = result.voices;
+  state.selectedVoices = new Set([...state.selectedVoices].filter(id => result.voices.some(v => v.voice_id === id && !v.preset)));
   const previous = $("voice-select").value;
   $("voice-count").textContent = result.voices.length;
   $("voice-select").innerHTML = '<option value="">请选择本地音色</option>' + result.voices.map(v => `<option value="${esc(v.voice_id)}">${esc(v.name)} · ${esc(v.voice_id)} · ${esc(voiceNames[v.conditioning_state] || v.conditioning_state)}</option>`).join("");
   if (result.voices.some(v => v.voice_id === previous)) $("voice-select").value = previous;
   else if (result.voices.length) $("voice-select").value = result.voices[0].voice_id;
-  if (previous !== $("voice-select").value) markPlanStale();
+  if (previous !== $("voice-select").value) { markPlanStale(); clearVoicePreview(); }
   $("preview-voice").disabled = !result.voices.some(v => v.voice_id === $("voice-select").value && !v.preset);
-  $("voice-list").innerHTML = result.voices.length ? result.voices.map(v => `<div class="voice-item"><span class="voice-avatar">${icon("voice")}</span><div class="voice-body"><div class="voice-heading"><button type="button" class="voice-id-badge" data-copy-voice-id="${esc(v.voice_id)}" title="点击复制音色 ID：${esc(v.voice_id)}" aria-label="复制音色 ID：${esc(v.voice_id)}"><span aria-hidden="true">id</span><code>${esc(v.voice_id)}</code></button><h3 title="${esc(v.name)}">${esc(v.name)}</h3></div><p>${esc(v.mode === "icl" ? "完整参考" : v.mode === "x_vector_only" ? "说话人特征" : "预设音色")}${v.reference?.duration_seconds ? ` · ${v.reference.duration_seconds.toFixed(1)} 秒` : ""}</p>${v.error ? `<p class="failed">${esc(v.error.message)}</p>` : ""}</div><div class="voice-actions"><span class="badge ${v.conditioning_state === "ready" ? "ready" : v.conditioning_state === "failed" ? "failed" : "warning"}">${esc(voiceNames[v.conditioning_state] || v.conditioning_state)}</span>${v.preset ? "" : `<button class="link-button" data-sample="${esc(v.voice_id)}">试听</button>`}<button class="secondary" data-select-voice="${esc(v.voice_id)}">使用</button>${v.preset ? "" : `<details class="voice-menu"><summary aria-label="${esc(v.name)}的更多操作">⋯</summary><div class="voice-menu-items"><button class="link-button" data-edit="${esc(v.voice_id)}">编辑对应文字</button><button class="link-button" data-prepare="${esc(v.voice_id)}">重新提取</button></div></details>`}</div><div class="sample-slot"></div></div>`).join("") : `<div class="empty-state"><svg class="icon empty-icon"><use href="#i-voice"/></svg><strong>还没有参考音色</strong><p>选择清晰录音，添加你的第一个音色。</p></div>`;
+  $("voice-list").querySelectorAll("audio").forEach(audio => audio.pause());
+  $("voice-list").innerHTML = result.voices.length ? result.voices.map(v => `<div class="voice-item">${v.preset ? `<span class="voice-avatar">${icon("voice")}</span>` : `<label class="voice-check"><input type="checkbox" class="voice-checkbox" data-check-voice="${esc(v.voice_id)}" aria-label="选择音色：${esc(v.name)}（${esc(v.voice_id)}）"></label>`}<div class="voice-body"><div class="voice-heading"><button type="button" class="voice-id-badge" data-copy-voice-id="${esc(v.voice_id)}" title="点击复制音色 ID：${esc(v.voice_id)}" aria-label="复制音色 ID：${esc(v.voice_id)}"><span aria-hidden="true">id</span><code>${esc(v.voice_id)}</code></button><h3 title="${esc(v.name)}">${esc(v.name)}</h3></div><p>${esc(v.mode === "icl" ? "完整参考" : v.mode === "x_vector_only" ? "说话人特征" : "预设音色")}${v.reference?.duration_seconds ? ` · ${v.reference.duration_seconds.toFixed(1)} 秒` : ""}</p>${v.error ? `<p class="failed">${esc(v.error.message)}</p>` : ""}</div><div class="voice-actions"><span class="badge ${v.conditioning_state === "ready" ? "ready" : v.conditioning_state === "failed" ? "failed" : "warning"}">${esc(voiceNames[v.conditioning_state] || v.conditioning_state)}</span>${v.preset ? "" : `<button class="link-button" data-sample="${esc(v.voice_id)}">试听</button>`}<button class="secondary" data-select-voice="${esc(v.voice_id)}">使用</button>${v.preset ? "" : `<details class="voice-menu"><summary aria-label="${esc(v.name)}的更多操作">⋯</summary><div class="voice-menu-items"><button class="link-button" data-export-voice="${esc(v.voice_id)}">导出音色</button><button class="link-button" data-edit="${esc(v.voice_id)}">编辑对应文字</button><button class="link-button" data-prepare="${esc(v.voice_id)}">重新提取</button><button class="link-button danger-link" data-delete-voice="${esc(v.voice_id)}">删除音色</button></div></details>`}</div><div class="sample-slot"></div></div>`).join("") : `<div class="empty-state"><svg class="icon empty-icon"><use href="#i-voice"/></svg><strong>还没有参考音色</strong><p>添加参考录音，或导入已有 ZIP 音色包。</p></div>`;
+  updateVoiceSelection();
+  $("voice-list").querySelectorAll("[data-check-voice]").forEach(input => input.onchange = () => {
+    if (input.checked) state.selectedVoices.add(input.dataset.checkVoice); else state.selectedVoices.delete(input.dataset.checkVoice);
+    updateVoiceSelection();
+  });
+  $("voice-list").querySelectorAll("[data-export-voice]").forEach(button => button.onclick = () => {
+    button.closest("details").open = false; run(() => exportVoices([button.dataset.exportVoice]));
+  });
+  $("voice-list").querySelectorAll("[data-delete-voice]").forEach(button => button.onclick = () => {
+    button.closest("details").open = false; requestVoiceDeletion([button.dataset.deleteVoice]);
+  });
   $("voice-list").querySelectorAll("[data-select-voice]").forEach(b => b.onclick = () => { if ($("voice-select").value !== b.dataset.selectVoice) { markPlanStale(); clearVoicePreview(); } $("voice-select").value = b.dataset.selectVoice; $("preview-voice").disabled = !!state.voices.find(v => v.voice_id === b.dataset.selectVoice)?.preset; showView("studio"); });
   $("voice-list").querySelectorAll("[data-copy-voice-id]").forEach(b => b.onclick = () => copyVoiceId(b.dataset.copyVoiceId, b.querySelector("code")));
   $("voice-list").querySelectorAll(".voice-menu").forEach(menu => menu.addEventListener("toggle", () => {
@@ -280,6 +294,89 @@ async function voices() {
     const job = await json(`/v1/voices/${b.dataset.prepare}/prepare`, {method:"POST"});
     await selectJob(job.job_id); notice("参考条件提取已加入队列");
   }, b));
+}
+function updateVoiceSelection() {
+  const selectable = state.voices.filter(voice => !voice.preset), count = state.selectedVoices.size;
+  const presetsOnly = state.voices.some(voice => voice.preset);
+  $("voice-batch-toolbar").hidden = presetsOnly; $("voice-package-hint").hidden = presetsOnly;
+  $("select-all-voices").checked = selectable.length > 0 && count === selectable.length;
+  $("select-all-voices").indeterminate = count > 0 && count < selectable.length;
+  $("select-all-voices").disabled = state.voiceBusy || !selectable.length;
+  $("voice-selection-count").textContent = `已选 ${count} 个`;
+  for (const id of ["clear-voice-selection", "export-voices", "delete-voices"]) $(id).disabled = state.voiceBusy || !count;
+  $("import-voices").disabled = state.voiceBusy || presetsOnly; $("refresh-voices").disabled = state.voiceBusy;
+  $("voice-list").querySelectorAll("[data-check-voice]").forEach(input => {
+    input.checked = state.selectedVoices.has(input.dataset.checkVoice); input.disabled = state.voiceBusy;
+  });
+  $("voice-list").querySelectorAll("[data-export-voice], [data-delete-voice]").forEach(button => button.disabled = state.voiceBusy);
+}
+function checkedVoiceIds() {
+  const ids = [...state.selectedVoices];
+  if (!ids.length) throw new Error("请先勾选音色。");
+  if (ids.length > 100) throw new Error("每批最多处理 100 个音色，请分批选择。");
+  return ids;
+}
+async function exportVoices(ids) {
+  if (state.voiceBusy) return;
+  state.voiceBusy = true; updateVoiceSelection();
+  try {
+    const response = await api("/v1/voices/export", {method:"POST", body:JSON.stringify({voice_ids:ids})});
+    const url = URL.createObjectURL(await response.blob()), link = document.createElement("a");
+    link.href = url; link.download = ids.length === 1 ? `${ids[0]}.zip` : "qwen3-tts-voices.zip";
+    document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+    notice(`已导出 ${ids.length} 个音色，可通过「导入音色」恢复。`);
+  } finally { state.voiceBusy = false; updateVoiceSelection(); }
+}
+function requestVoiceDeletion(ids) {
+  if (state.voiceBusy) return;
+  state.deleteVoiceIds = [...ids];
+  $("delete-voices-title").textContent = `删除 ${ids.length} 个音色`;
+  $("delete-voices-list").innerHTML = ids.map(id => `<li>${esc(state.voices.find(voice => voice.voice_id === id)?.name || id)} · ${esc(id)}</li>`).join("");
+  $("delete-voices-error").hidden = true; $("delete-voices-dialog").showModal();
+}
+async function deleteSelectedVoices() {
+  if (state.voiceBusy) return;
+  state.voiceBusy = true; updateVoiceSelection();
+  $("confirm-delete-voices").disabled = true; $("cancel-delete-voices").disabled = true;
+  try {
+    const result = await json("/v1/voices/delete", {method:"POST", body:JSON.stringify({voice_ids:state.deleteVoiceIds})});
+    result.deleted.forEach(id => state.selectedVoices.delete(id));
+    if (result.deleted.includes(state.previewVoiceId)) clearVoicePreview();
+    markPlanStale(); $("delete-voices-dialog").close(); await voices();
+    notice(`已删除 ${result.deleted.length} 个音色。`);
+  } catch (error) {
+    $("delete-voices-error").textContent = error.message; $("delete-voices-error").hidden = false;
+    notice(error.message, true);
+  } finally {
+    state.voiceBusy = false; updateVoiceSelection();
+    $("confirm-delete-voices").disabled = false; $("cancel-delete-voices").disabled = false;
+  }
+}
+async function importVoiceFiles(files) {
+  if (state.voiceBusy || !files.length) return;
+  state.voiceBusy = true; updateVoiceSelection();
+  const imported = [], lines = []; let failures = 0;
+  try {
+    for (const file of files) {
+      notice(`正在导入 ${file.name}…`);
+      try {
+        const form = new FormData(); form.append("file", file);
+        const result = await json("/v1/voices/import", {method:"POST", body:form});
+        imported.push(...result.voices);
+        lines.push(`${file.name}：已导入 ${result.voices.length} 个音色`);
+        for (const voice of result.voices) {
+          lines.push(`  ${voice.name} · ${voice.source_voice_id === voice.voice_id ? voice.voice_id : `${voice.source_voice_id} → ${voice.voice_id}（原 ID 已存在）`}${voice.preparation_job_id ? "" : " · 待重新提取"}`);
+        }
+      } catch (error) { failures++; lines.push(`${file.name}：导入失败 ${error.message}`); }
+    }
+    if (imported.length) state.selectedVoices = new Set(imported.map(voice => voice.voice_id));
+    $("voice-import-report").hidden = false; $("voice-import-report").open = true;
+    $("voice-import-details").textContent = lines.join("\n");
+    await voices();
+    const renamed = imported.filter(voice => voice.source_voice_id !== voice.voice_id).length;
+    const pending = imported.filter(voice => !voice.preparation_job_id).length;
+    notice(`已导入 ${imported.length} 个音色${renamed ? `，${renamed} 个重复 ID 已自动更名` : ""}${pending ? `，${pending} 个需在更多操作中重新提取` : ""}${failures ? `；${failures} 个文件失败，请查看导入结果` : ""}。`, failures > 0);
+  } finally { state.voiceBusy = false; updateVoiceSelection(); $("voice-import-files").value = ""; }
 }
 function sourceMeta() {
   const source = $("director-editor").value;
@@ -545,6 +642,18 @@ document.querySelectorAll("[data-speed-step]").forEach(button => button.onclick 
 });
 bind("go-upload", () => { state.uploadFromStudio = true; showView("voices", {history:false}); selectVoiceEntry("upload"); $("sample-file").click(); $("voice-form").scrollIntoView({block:"nearest"}); });
 bind("preview-voice", previewVoice); bind("refresh-voices", voices); bind("refresh-jobs", jobs);
+$("select-all-voices").onchange = () => {
+  state.selectedVoices = new Set($("select-all-voices").checked ? state.voices.filter(voice => !voice.preset).map(voice => voice.voice_id) : []);
+  updateVoiceSelection();
+};
+$("clear-voice-selection").onclick = () => { state.selectedVoices.clear(); updateVoiceSelection(); };
+$("export-voices").onclick = () => run(() => exportVoices(checkedVoiceIds()));
+$("delete-voices").onclick = () => run(() => requestVoiceDeletion(checkedVoiceIds()));
+$("import-voices").onclick = () => { if (!state.voiceBusy) $("voice-import-files").click(); };
+$("voice-import-files").onchange = () => run(() => importVoiceFiles([...$("voice-import-files").files]));
+$("cancel-delete-voices").onclick = () => $("delete-voices-dialog").close();
+$("confirm-delete-voices").onclick = () => run(deleteSelectedVoices);
+$("delete-voices-dialog").addEventListener("cancel", event => { if (state.voiceBusy) event.preventDefault(); });
 bind("compile-button", compile); bind("submit-button", () => submit(requestBody(), true)); bind("refresh-button", pollJob);
 bind("cancel-button", async () => { await json(`/v1/jobs/${state.jobId}/cancel`, {method:"POST"}); await pollJob(); });
 bind("close-edit", () => $("edit-voice-card").close());

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import secrets
+import shutil
 import tempfile
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
@@ -11,9 +12,10 @@ from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 
 from qwen3_tts_openai.config import Settings
-from qwen3_tts_openai.contracts import NarrationRequest, SpeechRequest, VoiceEdit
+from qwen3_tts_openai.contracts import NarrationRequest, SpeechRequest, VoiceEdit, VoiceSelection
 from qwen3_tts_openai.errors import ServiceError
 from qwen3_tts_openai.synthesis_service import SynthesisService
 
@@ -39,12 +41,14 @@ class RequestGuard:
             if not secrets.compare_digest(headers.get(b"x-admin-token", b""), self.settings.admin_token.encode("utf-8")):
                 return await JSONResponse(ServiceError("unauthorized", "Provide x-admin-token", 401).payload(), 401)(scope, receive, send)
         content_length = headers.get(b"content-length")
+        body_limit = (self.settings.max_voice_archive_bytes + 1024 * 1024
+                      if path == "/v1/voices/import" else self.settings.max_request_bytes)
         try:
-            oversized = content_length is not None and int(content_length) > self.settings.max_request_bytes
+            oversized = content_length is not None and int(content_length) > body_limit
         except ValueError:
             oversized = True
         if oversized:
-            return await JSONResponse(ServiceError("request_too_large", "Request exceeds MAX_REQUEST_BYTES", 413).payload(), 413)(scope, receive, send)
+            return await JSONResponse(ServiceError("request_too_large", "Request exceeds its size limit", 413).payload(), 413)(scope, receive, send)
         # Bound chunked bodies before FastAPI's multipart parser can spool an unbounded upload.
         if scope["method"] in {"POST", "PUT", "PATCH"}:
             body, count = [], 0
@@ -54,8 +58,8 @@ class RequestGuard:
                     return
                 chunk = message.get("body", b"")
                 count += len(chunk)
-                if count > self.settings.max_request_bytes:
-                    return await JSONResponse(ServiceError("request_too_large", "Request exceeds MAX_REQUEST_BYTES", 413).payload(), 413)(scope, receive, send)
+                if count > body_limit:
+                    return await JSONResponse(ServiceError("request_too_large", "Request exceeds its size limit", 413).payload(), 413)(scope, receive, send)
                 body.append(chunk)
                 if not message.get("more_body", False):
                     break
@@ -195,6 +199,43 @@ def create_app(settings=None, backend=None):
     @app.get("/v1/voices")
     def voices():
         return {"voices": service.list_voices()}
+
+    @app.post("/v1/voices/export")
+    def export_voices(request: VoiceSelection):
+        directory = Path(tempfile.mkdtemp(prefix=".voice-export-", dir=settings.data_dir))
+        target = directory / "qwen3-tts-voices.zip"
+        try:
+            service.export_voices(request.voice_ids, target)
+        except Exception:
+            shutil.rmtree(directory)
+            raise
+        return FileResponse(target, media_type="application/zip", filename=target.name,
+                            background=BackgroundTask(shutil.rmtree, directory))
+
+    @app.post("/v1/voices/import", status_code=201)
+    async def import_voices(file: UploadFile = File(...)):
+        try:
+            if not (file.filename or "").lower().endswith(".zip"):
+                raise ServiceError("invalid_voice_archive", "请选择本服务导出的 ZIP 音色包。", 422)
+            with tempfile.TemporaryDirectory(prefix=".voice-upload-", dir=settings.data_dir) as temp:
+                path, count = Path(temp) / "voices.zip", 0
+                with path.open("wb") as outgoing:
+                    while chunk := await file.read(256 * 1024):
+                        count += len(chunk)
+                        if count > settings.max_voice_archive_bytes:
+                            raise ServiceError("voice_archive_too_large", "音色包超过 MAX_VOICE_ARCHIVE_BYTES，请分批导入。", 413)
+                        outgoing.write(chunk)
+                return await asyncio.to_thread(service.import_voices, path)
+        finally:
+            await file.close()
+
+    @app.post("/v1/voices/delete")
+    def delete_voices(request: VoiceSelection):
+        return service.delete_voices(request.voice_ids)
+
+    @app.delete("/v1/voices/{voice_id}")
+    def delete_voice(voice_id: str):
+        return service.delete_voices([voice_id])
 
     @app.patch("/v1/voices/{voice_id}")
     def edit_voice(voice_id: str, request: VoiceEdit):

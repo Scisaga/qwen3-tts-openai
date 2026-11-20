@@ -82,7 +82,7 @@ Choose a voice and edit plain text, a director script, or SSML on the left. Insp
 | Voice management | Generation and playback |
 | --- | --- |
 | Each row places a clickable ID badge before the name. Copy the ID, preview and select voices, or create one through **Quick clone** or **Add voice**. | Follow progress, switch between full-script and per-page playback, and download MP3, WAV, timelines, and execution records. |
-| ![Voice management](docs/images/voices.png) | ![Narration result and audio downloads](docs/images/audio-result.png) |
+| ![Voice management: selection, bulk export, import, and deletion](docs/images/voices.png) | ![Narration result and audio downloads](docs/images/audio-result.png) |
 
 ### Quick voice cloning
 
@@ -121,6 +121,7 @@ During generation, progress follows actual decoding steps. The page refreshes ev
 | --- | --- |
 | Reference voice cloning | Upload a WAV and save a reusable voice, using either the full reference or speaker features only. |
 | Readable voice IDs | Set a short ID when uploading or quick-cloning. Each row shows a clickable ID badge before its name; use the copied ID in API, MCP, or director scripts. |
+| Voice file management | Select one, several, or all voices; export ZIP packages, import multiple packages, and confirm bulk deletion. Each row also supports individual export and deletion. |
 | Quick cloning, optional | Record in the browser or upload a short clip, transcribe it, confirm the text, save the voice, and preview it with a new sentence. |
 | LAN browser recording, optional | Provides a separate HTTPS entry point, a link from the HTTP workbench, and a public CA certificate download. Trust the certificate on the client computer to enable microphone access. |
 | Multiple script formats | Paste plain text, or organize pages and segments with director-script JSON or SSML. |
@@ -147,7 +148,7 @@ Each page has its own URL and can be opened directly, reloaded, bookmarked, or o
 | Page | Path | Main actions |
 | --- | --- | --- |
 | Narration workbench | `/studio` | Plain text, director scripts, SSML, preflight, generation, full-script and per-page playback. |
-| Voice management | `/voices` | Copy IDs, listen to references, select voices, quick-clone, or upload recordings. |
+| Voice management | `/voices` | Copy IDs, listen to references, select one or more voices, export/import/delete in bulk, quick-clone, or upload recordings. |
 | Jobs and artifacts | `/jobs` | Inspect status, progress, and history, and open existing job results. |
 | MCP integration | `/integrations/mcp` | Check connections, copy configuration, and inspect actual tools and parameters. |
 | Runtime status | `/runtime` | Inspect model readiness, devices, audio tools, and control capabilities. |
@@ -186,6 +187,16 @@ Compare candidates using the same narration text, checking pronunciation, pace, 
 [Scisaga/skills](https://github.com/Scisaga/skills) collects independently installable tool skills. Its [build-narrated-presentation](https://github.com/Scisaga/skills/tree/main/skills/build-narrated-presentation) skill works with per-page scripts and presentation production: it can plan pace, pitch, and pauses and organize per-page audio, PPTX, or video outputs according to the chosen target. This project provides director-script preflight and local narration. When connecting the two, check the skill's configured speech backend and input contract.
 
 The [qwen3-tts-openai Skill](skills/qwen3-tts-openai/SKILL.md) bundled here handles this service's installation, deployment, connection setup, voice selection, job queries, and audio downloads. Use the appropriate skill for presentation production or speech-service operation, and follow each repository's installation instructions.
+
+## Voice file management
+
+The toolbar above the list groups selection, export, deletion, import, and refresh. Tick one or several rows in **Voice management** (音色管理). **Select all** (全选) selects all local voices; **Clear selection** (取消选择) clears the checkboxes. Refreshing the list preserves selections that still exist.
+
+- **Export:** **Export selected** (导出所选) downloads one ZIP package. Use **⋯ → Export voice** (导出音色) for a single row. Packages contain original WAV reference recordings, voice IDs, names, matching transcripts, reference modes, and audio checksums.
+- **Import:** **Import voices** (导入音色) accepts multiple ZIP packages exported by this service. Each package is fully validated before any of its voices are saved. A failed file does not prevent other files from being processed; results are shown individually. Existing IDs are preserved: conflicts receive suffixes such as `-2` and `-3`, with the new IDs shown in the report.
+- **Delete:** **Delete selected** (删除所选) shows the names and IDs for confirmation. **⋯ → Delete voice** (删除音色) removes a single row. Deletion removes reference recordings and configuration while retaining generated narration artifacts. If a queued or running job uses any selected voice, the entire deletion is rejected; wait for the job to finish or cancel it before retrying.
+
+Each batch supports up to 100 voices. ZIP packages and their expanded contents are limited to 256 MiB by default; configure `MAX_VOICE_ARCHIVE_BYTES` to change this. Each recording remains subject to `MAX_UPLOAD_BYTES` and reference duration limits. Imported voices rebuild conditioning for the current model. If the preparation queue is full, the voices remain saved; retry **⋯ → Prepare again** (重新提取) later. These file operations apply to registered reference voices; presets do not support them.
 
 ## Quick voice cloning
 
@@ -406,6 +417,10 @@ The workbench's **MCP integration** (MCP 接入) menu provides the service URL, 
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /v1/voices` | Register a voice from a WAV, or submit `draft_id`, `name`, and confirmed `ref_text` to register a quick-clone voice. |
+| `POST /v1/voices/export` | Send `{"voice_ids":["narrator","speaker"]}` to download a ZIP package using the same API authentication. |
+| `POST /v1/voices/import` | Upload one ZIP package as multipart `file`; returns voices with `source_voice_id` and `preparation_job_id`. Conflicting IDs are renamed automatically. |
+| `POST /v1/voices/delete` | Send `{"voice_ids":["narrator","speaker"]}` for bulk deletion. Rejects the entire selection if any voice is in use. |
+| `DELETE /v1/voices/{voice_id}` | Delete one saved voice, with the same queued/running job checks. |
 | `POST /v1/voices/references` | Upload and transcribe a short clip. Returns `draft_id`, `ref_text`, `sample_url`, expiration time, and transcription status. Set `transcribe=false` to skip waiting for ASR. |
 | `POST /v1/voices/references/{draft_id}/transcribe` | Retry transcription for a recording draft. |
 | `GET /v1/voices/references/{draft_id}/sample` | Play back the draft WAV using the same API authentication. |

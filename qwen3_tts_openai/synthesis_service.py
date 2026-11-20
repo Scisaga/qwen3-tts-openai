@@ -26,6 +26,7 @@ from qwen3_tts_openai.job_store import JobStore, TERMINAL
 from qwen3_tts_openai.job_progress import NarrationProgress
 from qwen3_tts_openai.reference_store import ReferenceStore
 from qwen3_tts_openai.storage import Database, digest, file_hash, write_json
+from qwen3_tts_openai.voice_archive import export_archive, read_archive
 from qwen3_tts_openai.voice_store import VoiceStore
 
 log = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ class SynthesisService:
         self.asr = AsrClient(settings)
         self.references = ReferenceStore(settings.data_dir / "reference-drafts", self.audio, settings.reference_draft_ttl_seconds)
         self.voices = VoiceStore(database, settings.data_dir / "voices", self.audio)
+        self.voice_lock = threading.RLock()
         self.jobs = JobStore(database, settings.queue_limit)
         self.backend = backend or ModelRuntime(settings)
         self.stop_event = threading.Event()
@@ -148,50 +150,89 @@ class SynthesisService:
             raise ServiceError("disk_full", "Insufficient free disk; free space in DATA_DIR or adjust MIN_FREE_DISK_BYTES", 507)
 
     def submit(self, request: NarrationRequest, raw_input: str | None = None):
-        if self.stop_event.is_set():
-            raise ServiceError("service_stopping", "Service is shutting down", 503)
-        plan = self.compile(request)
-        if not plan["valid"]:
-            raise ServiceError("preflight_failed", "Resolve preflight errors or explicitly allow a supported degradation", 422, plan)
-        self.disk_check()
-        job = self.jobs.submit("narration", {"input": request.model_dump(), "raw_input": raw_input}, plan)
-        self.wake.set()
+        # Keep voice resolution and durable submission together relative to deletion.
+        with self.voice_lock:
+            if self.stop_event.is_set():
+                raise ServiceError("service_stopping", "Service is shutting down", 503)
+            plan = self.compile(request)
+            if not plan["valid"]:
+                raise ServiceError("preflight_failed", "Resolve preflight errors or explicitly allow a supported degradation", 422, plan)
+            self.disk_check()
+            job = self.jobs.submit("narration", {"input": request.model_dump(), "raw_input": raw_input}, plan)
+            self.wake.set()
         return self.public_job(job)
 
-    def register_voice(self, source, name, ref_text, mode=None, voice_id=None):
+    def _validate_voice_metadata(self, name, ref_text, mode):
         if self.settings.backend == "qwen-custom":
             raise ServiceError("voice_clone_unsupported", "CustomVoice exposes presets; use qwen-base to register reference audio", 422)
         if self.settings.backend == "qwen-combined-experimental" and (mode == "icl" or mode is None and ref_text.strip()):
             raise ServiceError("reference_mode_unsupported", "Combined experiment currently uses x_vector_only. Select that mode explicitly; complete ICL is available with qwen-base", 422)
         if not name.strip() or len(name) > 100 or len(ref_text) > 4000:
             raise ServiceError("invalid_voice_metadata", "Name must be 1-100 characters and ref_text <=4000 characters", 422)
+
+    def _voice_model(self):
+        return {"model_id": self.settings.model_id, "revision": self.settings.model_revision, "dtype": self.settings.dtype, "adapter_version": ADAPTER_VERSION}
+
+    def register_voice(self, source, name, ref_text, mode=None, voice_id=None):
+        self._validate_voice_metadata(name, ref_text, mode)
         self.disk_check()
-        model = {"model_id": self.settings.model_id, "revision": self.settings.model_revision, "dtype": self.settings.dtype, "adapter_version": ADAPTER_VERSION}
-        voice = self.voices.register(source, name, ref_text, mode, model, voice_id)
-        try:
-            job = self.prepare_voice(voice["voice_id"])
-        except ServiceError as e:
-            self.voices.preparation_finished(voice, e.payload()["error"])
-            # Preserve a receipt for callers retrying a draft after a queue rejection.
-            failed = {**self.voices.get(voice["voice_id"]), "preparation_job_id": None}
-            raise ServiceError(e.code, e.message, e.status, {"voice": failed, "cause": e.details}) from e
+        with self.voice_lock:
+            voice = self.voices.register(source, name, ref_text, mode, self._voice_model(), voice_id)
+            try:
+                job = self.prepare_voice(voice["voice_id"])
+            except ServiceError as e:
+                self.voices.preparation_finished(voice, e.payload()["error"])
+                # Preserve a receipt for callers retrying a draft after a queue rejection.
+                failed = {**self.voices.get(voice["voice_id"]), "preparation_job_id": None}
+                raise ServiceError(e.code, e.message, e.status, {"voice": failed, "cause": e.details}) from e
         return {**voice, "preparation_job_id": job["job_id"]}
 
     def prepare_voice(self, ident):
-        voice = self.voices.get(ident)
-        job = self.jobs.submit("voice_prepare", {"voice": voice})
-        self.wake.set()
+        with self.voice_lock:
+            voice = self.voices.get(ident)
+            job = self.jobs.submit("voice_prepare", {"voice": voice})
+            self.wake.set()
         return self.public_job(job)
 
     def edit_voice(self, ident, changes):
-        voice, changed = self.voices.edit(ident, changes)
-        if changed:
-            try:
-                voice["preparation_job_id"] = self.prepare_voice(ident)["job_id"]
-            except ServiceError as e:
-                self.voices.preparation_finished(voice, e.payload()["error"])
-                raise
+        with self.voice_lock:
+            voice, changed = self.voices.edit(ident, changes)
+            if changed:
+                try:
+                    voice["preparation_job_id"] = self.prepare_voice(ident)["job_id"]
+                except ServiceError as e:
+                    self.voices.preparation_finished(voice, e.payload()["error"])
+                    raise
         return voice
+
+    def export_voices(self, identifiers, target):
+        self.disk_check()
+        with self.voice_lock:
+            export_archive(self.voices, identifiers, target, self.settings.max_voice_archive_bytes)
+
+    def import_voices(self, source):
+        self.disk_check()
+        with tempfile.TemporaryDirectory(prefix=".voice-import-", dir=self.settings.data_dir) as temp:
+            entries = read_archive(source, Path(temp), self.settings)
+            for entry in entries:
+                self._validate_voice_metadata(entry["name"], entry["ref_text"], entry["mode"])
+            with self.voice_lock:
+                imported = self.voices.register_many(entries, self._voice_model(), rename_conflicts=True)
+                result = []
+                for entry, voice in zip(entries, imported):
+                    job_id = None
+                    try:
+                        job_id = self.prepare_voice(voice["voice_id"])["job_id"]
+                    except ServiceError as exc:
+                        # Registration succeeded even if the bounded preparation queue is full.
+                        self.voices.preparation_finished(voice, exc.payload()["error"])
+                    result.append({**self.voices.get(voice["voice_id"]), "source_voice_id": entry["voice_id"],
+                                   "preparation_job_id": job_id})
+        return {"voices": result}
+
+    def delete_voices(self, identifiers):
+        with self.voice_lock:
+            return {"deleted": self.voices.delete_many(identifiers)}
 
     async def wait_job(self, ident, timeout):
         started = time.monotonic()

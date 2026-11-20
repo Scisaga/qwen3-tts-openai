@@ -38,38 +38,87 @@ class VoiceStore:
         root.mkdir(parents=True, exist_ok=True)
 
     def register(self, source: Path, name: str, ref_text: str, mode: str | None, model: dict, voice_id: str | None = None):
-        mode = mode or ("icl" if ref_text.strip() else "x_vector_only")
-        if mode not in {"icl", "x_vector_only"} or mode == "icl" and not ref_text.strip():
-            raise ServiceError("invalid_reference_mode", "ICL requires the matching ref_text; select x_vector_only explicitly without it")
-        requested = validate_voice_id(voice_id.strip()) if voice_id and voice_id.strip() else None
-        base = requested or voice_id_from_name(name)
-        directory = None
+        return self.register_many([{"source": source, "name": name, "ref_text": ref_text,
+                                    "mode": mode, "voice_id": voice_id}], model)[0]
+
+    def register_many(self, entries, model, *, rename_conflicts=False):
+        directories, documents = [], []
         try:
             with tempfile.TemporaryDirectory(prefix=".upload-", dir=self.root) as temp:
-                original, normalized = Path(temp) / "original.wav", Path(temp) / "reference.wav"
-                shutil.copyfile(source, original)
-                metadata = self.audio.validate_reference(original, normalized)
+                prepared = []
+                # Validate every recording before adding any voice to the library.
+                for index, entry in enumerate(entries):
+                    name, ref_text = entry["name"], entry["ref_text"]
+                    mode = entry.get("mode") or ("icl" if ref_text.strip() else "x_vector_only")
+                    if mode not in {"icl", "x_vector_only"} or mode == "icl" and not ref_text.strip():
+                        raise ServiceError("invalid_reference_mode", "ICL requires matching ref_text")
+                    requested = entry.get("voice_id")
+                    requested = validate_voice_id(requested.strip()) if requested and requested.strip() else None
+                    folder = Path(temp) / str(index)
+                    folder.mkdir()
+                    original, normalized = folder / "original.wav", folder / "reference.wav"
+                    shutil.copyfile(entry["source"], original)
+                    metadata = self.audio.validate_reference(original, normalized)
+                    prepared.append((folder, requested, name, ref_text, mode, metadata))
                 with self.database.connect() as db:
-                    # Allocate under the write lock so simultaneous same-name uploads stay distinct.
                     db.execute("BEGIN IMMEDIATE")
-                    ident, number = base, 1
-                    while db.execute("SELECT 1 FROM voices WHERE id=?", (ident,)).fetchone() or (self.root / ident).exists():
-                        if requested:
-                            raise ServiceError("voice_id_exists", "该音色 ID 已存在，请换一个名称。", 409)
-                        number += 1
-                        suffix = f"-{number}"
-                        ident = base[:MAX_VOICE_ID_LENGTH - len(suffix)].rstrip("-") + suffix
-                    doc = {"voice_id": ident, "name": name, "ref_text": ref_text, "mode": mode, "created_at": time.time(), "conditioning_state": "pending", "model": model, "reference": metadata, "warnings": (["x_vector_only uses speaker embedding without transcript/context; cloning quality needs listening review"] if mode == "x_vector_only" else [])}
-                    doc["conditioning_key"] = self.conditioning_key(doc)
-                    target = self.root / ident
-                    Path(temp).rename(target)
-                    directory = target
-                    db.execute("INSERT INTO voices(id,document) VALUES(?,?)", (ident, json.dumps(doc, ensure_ascii=False)))
-            return doc
+                    for folder, requested, name, ref_text, mode, metadata in prepared:
+                        base = requested or voice_id_from_name(name)
+                        ident, number = base, 1
+                        while db.execute("SELECT 1 FROM voices WHERE id=?", (ident,)).fetchone() or (self.root / ident).exists():
+                            if requested and not rename_conflicts:
+                                raise ServiceError("voice_id_exists", "该音色 ID 已存在，请换一个名称。", 409)
+                            number += 1
+                            suffix = f"-{number}"
+                            ident = base[:MAX_VOICE_ID_LENGTH - len(suffix)].rstrip("-") + suffix
+                        doc = {"voice_id": ident, "name": name, "ref_text": ref_text, "mode": mode, "created_at": time.time(), "conditioning_state": "pending", "model": model, "reference": metadata, "warnings": (["x_vector_only uses speaker embedding without transcript/context; cloning quality needs listening review"] if mode == "x_vector_only" else [])}
+                        doc["conditioning_key"] = self.conditioning_key(doc)
+                        target = self.root / ident
+                        folder.rename(target)
+                        directories.append(target)
+                        db.execute("INSERT INTO voices(id,document) VALUES(?,?)", (ident, json.dumps(doc, ensure_ascii=False)))
+                        documents.append(doc)
+            return documents
         except Exception:
-            if directory is not None:
+            for directory in directories:
                 shutil.rmtree(directory)
             raise
+
+    def delete_many(self, identifiers):
+        identifiers = list(dict.fromkeys(identifiers))
+        moved = []
+        with tempfile.TemporaryDirectory(prefix=".delete-", dir=self.root) as temp:
+            try:
+                with self.database.connect() as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    for ident in identifiers:
+                        if not db.execute("SELECT 1 FROM voices WHERE id=?", (ident,)).fetchone():
+                            raise ServiceError("voice_not_found", f"音色不存在：{ident}", 404)
+                    # Check the complete active queue, including jobs beyond the UI's latest 50.
+                    busy_voices, busy_jobs = set(), []
+                    for row in db.execute("SELECT id,kind,request,plan FROM jobs WHERE state IN ('queued','running')"):
+                        if row["kind"] == "voice_prepare":
+                            used = {json.loads(row["request"])["voice"]["voice_id"]}
+                        else:
+                            used = {unit["voice_id"] for unit in (json.loads(row["plan"]) if row["plan"] else {}).get("units", [])}
+                        overlap = used.intersection(identifiers)
+                        if overlap:
+                            busy_voices.update(overlap)
+                            busy_jobs.append(row["id"])
+                    if busy_voices:
+                        raise ServiceError("voices_in_use", "所选音色有任务正在使用，请等待任务完成或取消后重试。本次未删除任何音色。", 409,
+                                           {"voice_ids": sorted(busy_voices), "job_ids": busy_jobs})
+                    for index, ident in enumerate(identifiers):
+                        source, target = self.root / ident, Path(temp) / str(index)
+                        if source.exists():
+                            source.rename(target)
+                            moved.append((source, target))
+                        db.execute("DELETE FROM voices WHERE id=?", (ident,))
+            except Exception:
+                for source, target in reversed(moved):
+                    target.rename(source)
+                raise
+        return identifiers
 
     @staticmethod
     def conditioning_key(doc):
@@ -112,7 +161,8 @@ class VoiceStore:
             if not row:
                 return
             doc = json.loads(row[0])
-            if doc["conditioning_key"] != snapshot["conditioning_key"]:
+            if (doc["conditioning_key"] != snapshot["conditioning_key"]
+                    or doc["created_at"] != snapshot["created_at"]):
                 return
             doc["conditioning_state"] = "failed" if error else "ready"
             doc["error"] = error

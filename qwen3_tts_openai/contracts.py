@@ -65,3 +65,7 @@ class VoiceEdit(StrictModel):
     name: str | None = Field(None, min_length=1, max_length=100)
     ref_text: str | None = Field(None, max_length=4000)
     mode: Literal["icl", "x_vector_only"] | None = None
+
+
+class VoiceSelection(StrictModel):
+    voice_ids: list[str] = Field(min_length=1, max_length=100)

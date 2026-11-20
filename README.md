@@ -75,7 +75,7 @@ Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU
 | 音色管理 | 生成与试听 |
 | --- | --- |
 | ID badge 在前、名称在后，点击整个 badge 即可复制；通过「快速复刻 / 添加音色」创建、试听和选择音色。 | 查看任务进度，切换整稿或逐页试听，下载 MP3、WAV、时间轴和执行记录。 |
-| ![音色管理界面](docs/images/voices.png) | ![配音结果与音频下载](docs/images/audio-result.png) |
+| ![音色管理：勾选音色并批量导出、导入和删除](docs/images/voices.png) | ![配音结果与音频下载](docs/images/audio-result.png) |
 
 ### 快速复刻
 
@@ -114,6 +114,7 @@ Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU
 | --- | --- |
 | 参考音色克隆 | 上传 WAV，保存为可重复使用的音色；支持完整参考与仅说话人特征两种方式。 |
 | 可读音色 ID | 添加或快速复刻时自定义简短 ID；列表先显示可点击复制的 ID badge，再显示名称，可直接用于 API、MCP 和导演稿。 |
+| 音色文件管理 | 支持单选、多选、全选，批量导出 ZIP 音色包、导入多个音色包和确认后删除；每行也可单独导出或删除。 |
 | 快速复刻（可选） | 在网页录音或上传短录音，自动识别对应文字，确认后保存音色并用新句子试听。 |
 | 内网网页录音（可选） | 提供独立 HTTPS 入口、HTTP 页面跳转按钮和公共证书下载；访问电脑信任证书后可使用麦克风。 |
 | 多种文稿入口 | 直接粘贴普通文字，或使用导演稿 JSON、SSML 编排段落与页面。 |
@@ -140,7 +141,7 @@ Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU
 | 页面 | 路径 | 主要操作 |
 | --- | --- | --- |
 | 配音工作台 | `/studio` | 文本、导演稿、SSML，预检和生成，整稿与逐页试听。 |
-| 音色管理 | `/voices` | 查看与复制 ID、回听参考录音、选择音色、快速复刻和上传。 |
+| 音色管理 | `/voices` | 查看与复制 ID、回听参考录音、单选与多选、批量导出导入删除、快速复刻和上传。 |
 | 任务与产物 | `/jobs` | 查看任务状态、进度和历史，打开已有任务结果。 |
 | MCP 接入 | `/integrations/mcp` | 检查连接、复制配置、查看真实工具与参数。 |
 | 运行状态 | `/runtime` | 查看模型就绪状态、设备、音频工具和能力说明。 |
@@ -179,6 +180,16 @@ URL 同时保留页面内状态：`/studio?mode=director` 或 `?mode=ssml` 打�
 [Scisaga/skills](https://github.com/Scisaga/skills) 汇集可独立安装的工具技能。其中 [build-narrated-presentation](https://github.com/Scisaga/skills/tree/main/skills/build-narrated-presentation) 面向逐页讲稿与演示文稿制作，可编排语速、音高和停顿，并按目标组织逐页音频、PPTX 或视频产物。本项目提供导演稿预检与本地配音服务；实际串联时需按技能配置核对语音后端与输入协议。
 
 本仓库随附的 [qwen3-tts-openai Skill](skills/qwen3-tts-openai/SKILL.md) 则负责本服务的安装部署、接入、音色选择、任务查询和音频下载。演示文稿制作与语音服务运维分别使用对应技能，安装说明以各自仓库为准。
+
+## 音色文件管理
+
+列表上方的操作栏集中提供选择、导出、删除、导入和刷新操作。勾选一行可单选，勾选多行可多选；「全选」选择全部本地音色，「取消选择」清空勾选。刷新列表会保留仍存在的已选音色。
+
+- **导出**：点击「导出所选」下载一个 ZIP 音色包。每行的「⋯ → 导出音色」可单独导出。包内包含原始 WAV 参考录音、音色 ID、名称、对应文字、参考模式和音频校验值。
+- **导入**：点击「导入音色」，可一次选择多个本服务导出的 ZIP 包。每个包先完整校验，再整包保存；其中一个文件失败时会继续处理其他文件，并逐项显示结果。已有 ID 不会被覆盖，冲突时自动添加 `-2`、`-3` 等后缀，并在导入结果中显示新 ID。
+- **删除**：点击「删除所选」，核对名称与 ID 后确认；也可通过每行的「⋯ → 删除音色」删除单个音色。删除会移除参考录音和配置，已生成的配音产物仍保留。如果所选音色被排队或执行中的任务使用，整次删除会被拒绝，请等待任务完成或取消后重试。
+
+每批最多处理 100 个音色。ZIP 包及解压后的总大小默认最多 256 MiB，可通过 `MAX_VOICE_ARCHIVE_BYTES` 调整；包内每条录音仍受 `MAX_UPLOAD_BYTES` 和参考音频时长限制。导入会按当前模型重新提取参考条件；提取队列已满时音色仍会保存，请稍后通过「⋯ → 重新提取」重试。预设音色不支持这些文件操作。
 
 ## 快速音色复刻
 
@@ -399,6 +410,10 @@ curl --fail-with-body http://127.0.0.1:8000/v1/audio/speech \
 | 入口 | 用途 |
 | --- | --- |
 | `POST /v1/voices` | 上传 WAV 注册音色，或提交 `draft_id`、`name`、确认后的 `ref_text` 注册快速复刻音色。 |
+| `POST /v1/voices/export` | 传入 `{"voice_ids":["narrator","speaker"]}`，下载 ZIP 音色包，使用相同 API 鉴权。 |
+| `POST /v1/voices/import` | 用 multipart `file` 上传一个 ZIP 音色包，返回音色列表、`source_voice_id` 与 `preparation_job_id`；重复 ID 自动更名。 |
+| `POST /v1/voices/delete` | 传入 `{"voice_ids":["narrator","speaker"]}` 批量删除；任何所选音色正在使用时整次拒绝。 |
+| `DELETE /v1/voices/{voice_id}` | 删除单个已保存音色，同样检查排队与执行中的任务。 |
 | `POST /v1/voices/references` | 上传短录音并转写，返回 `draft_id`、`ref_text`、`sample_url`、过期时间与识别状态；传 `transcribe=false` 可跳过识别等待。 |
 | `POST /v1/voices/references/{draft_id}/transcribe` | 重新识别录音草稿。 |
 | `GET /v1/voices/references/{draft_id}/sample` | 回放草稿 WAV，使用同一 API 鉴权。 |

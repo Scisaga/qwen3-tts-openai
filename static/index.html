@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#f4f7f5">
   <title>Qwen3-TTS · 配音工作台</title>
   <link rel="icon" href="/static/favicon.svg?v=20261012-4">
-  <link rel="stylesheet" href="/static/app.css?v=20261025-microphone-1">
-  <script src="/static/app.js?v=20261023-id-order-1" defer></script>
+  <link rel="stylesheet" href="/static/app.css?v=20261120-voice-files-4">
+  <script src="/static/app.js?v=20261120-voice-files-1" defer></script>
   <script src="/static/mcp.js?v=20261023-typography-1" defer></script>
   <script src="/static/quick-clone.js?v=20261025-microphone-1" defer></script>
 </head>
@@ -93,7 +93,18 @@
       </div>
     </section>
     <section id="view-voices" class="view" hidden><div class="grid voice-grid">
-      <article class="card voice-library"><div class="card-header"><div class="section-heading"><svg class="icon"><use href="#i-voice"/></svg><h2>音色库</h2></div><button id="refresh-voices" class="link-button">刷新</button></div><div id="voice-list" class="card-body">读取中</div></article>
+      <article class="card voice-library">
+        <div class="card-header voice-library-header">
+          <div class="voice-batch-toolbar" id="voice-batch-toolbar" role="group" aria-label="批量管理音色">
+            <label class="check"><input type="checkbox" id="select-all-voices" disabled>全选</label><span id="voice-selection-count" class="muted" role="status">已选 0 个</span><button type="button" id="clear-voice-selection" class="link-button" disabled>取消选择</button>
+            <div class="voice-batch-actions"><button type="button" id="export-voices" class="secondary" disabled>导出所选</button><button type="button" id="delete-voices" class="secondary danger-link" disabled>删除所选</button></div>
+          </div>
+          <div class="voice-library-tools"><button type="button" id="import-voices" class="link-button" title="导入本服务导出的 ZIP 音色包，可一次选择多个文件">导入音色</button><input type="file" id="voice-import-files" accept=".zip,application/zip" multiple hidden aria-label="导入音色包"><button id="refresh-voices" class="link-button">刷新</button></div>
+        </div>
+        <p class="voice-package-hint" id="voice-package-hint">勾选音色可批量导出、删除；ZIP 音色包包含参考录音、名称和对应文字。</p>
+        <details id="voice-import-report" class="voice-import-report" hidden><summary>导入结果</summary><pre id="voice-import-details"></pre></details>
+        <div id="voice-list" class="card-body">读取中</div>
+      </article>
       <div class="voice-additions">
       <div class="voice-entry-tabs" role="tablist" aria-label="添加音色方式">
         <button type="button" class="voice-entry-tab" id="voice-tab-quick" role="tab" data-voice-entry="quick" aria-controls="quick-clone-card" aria-selected="false" tabindex="-1" hidden><svg class="icon"><use href="#i-voice"/></svg>快速复刻</button>
@@ -124,7 +135,9 @@
         <label class="drop"><svg class="icon"><use href="#i-upload"/></svg><span class="upload-copy"><strong id="sample-name">选择参考录音</strong><small>清晰的 WAV 文件 · 保留原始录音</small></span><span class="upload-choice">选择 WAV</span><input id="sample-file" name="file" type="file" accept=".wav,audio/wav" required aria-label="选择参考录音 WAV"></label>
         <audio id="sample-preview" controls hidden></audio><label>音色名称<input id="voice-name" name="name" required maxlength="100" placeholder="选择录音后自动填写，可修改"></label><label>音色 ID<span class="optional-label">可选</span><input id="voice-id" name="voice_id" maxlength="40" spellcheck="false" autocapitalize="none" placeholder="例如：narrator；留空按名称生成" aria-describedby="voice-id-hint"></label><p class="hint" id="voice-id-hint">用于 API 和导演稿。支持小写字母、汉字、数字和连字符；自动生成时重名会追加序号。</p><label>录音对应文字<span class="optional-label">可选</span><textarea id="ref-text" name="ref_text" class="short" maxlength="4000" placeholder="填写录音中实际说出的文字，使用完整参考。留空则仅提取说话人特征。"></textarea></label><details class="disclosure upload-options"><summary>参考方式<span class="muted">默认自动选择</span></summary><div class="disclosure-body"><label>参考模式<select id="reference-mode" name="mode"><option value="auto">自动：按对应文字选择</option><option value="icl">完整参考（需要对应文字）</option><option value="x_vector_only">仅说话人特征（无需文字）</option></select></label><p class="hint">仅说话人特征不含文字上下文，克隆效果请试听确认。</p></div></details><button type="submit">添加音色</button>
       </form></article></div>
-    </div><dialog class="edit-card" id="edit-voice-card"><div class="card-header"><h2>编辑参考文字</h2><button id="close-edit" class="link-button">关闭</button></div><div class="card-body"><p id="edit-voice-name"></p><textarea id="edit-ref-text" class="short" maxlength="4000" aria-label="编辑参考文字"></textarea><select id="edit-reference-mode" aria-label="参考模式"><option value="icl">完整参考</option><option value="x_vector_only">仅说话人特征</option></select><div class="actions"><button id="save-ref-text">保存更改</button></div></div></dialog></section>
+    </div><dialog class="edit-card" id="edit-voice-card"><div class="card-header"><h2>编辑参考文字</h2><button id="close-edit" class="link-button">关闭</button></div><div class="card-body"><p id="edit-voice-name"></p><textarea id="edit-ref-text" class="short" maxlength="4000" aria-label="编辑参考文字"></textarea><select id="edit-reference-mode" aria-label="参考模式"><option value="icl">完整参考</option><option value="x_vector_only">仅说话人特征</option></select><div class="actions"><button id="save-ref-text">保存更改</button></div></div></dialog>
+    <dialog class="edit-card" id="delete-voices-dialog" aria-labelledby="delete-voices-title" aria-describedby="delete-voices-description"><div class="card-header"><h2 id="delete-voices-title">删除音色</h2></div><div class="card-body"><p id="delete-voices-description">将删除以下音色的参考录音和配置，无法撤销。可先导出备份。</p><ul id="delete-voices-list" class="delete-voices-list"></ul><p id="delete-voices-error" class="failed" role="alert" hidden></p><div class="actions"><button type="button" id="cancel-delete-voices" class="secondary">取消</button><button type="button" id="confirm-delete-voices" class="danger">确认删除</button></div></div></dialog>
+    </section>
     <section id="view-jobs" class="view" hidden><article class="card"><div class="card-header"><div class="section-heading"><svg class="icon"><use href="#i-folder"/></svg><h2>任务记录</h2><span id="jobs-count" class="quiet-tag">—</span></div><button class="link-button" id="refresh-jobs">刷新</button></div><div class="table-scroll"><table><thead><tr><th>任务</th><th>类型</th><th>状态</th><th>进度</th><th>提交时间</th><th></th></tr></thead><tbody id="job-list"></tbody></table></div></article></section>
     <section id="view-mcp" class="view" hidden>
       <div class="grid mcp-panels">

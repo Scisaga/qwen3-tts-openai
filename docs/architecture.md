@@ -12,7 +12,7 @@
 
 ## 代码结构
 
-Python 应用代码统一位于 `qwen3_tts_openai/`，以下 Python 模块路径均相对此目录。启动入口为仓库根目录下的 `python -m qwen3_tts_openai`，由 `__main__.py` 启动单进程 HTTP 服务；依赖输入与锁文件统一位于根目录的 `requirements/`。
+Python 应用代码位于 `qwen3_tts_openai/`，以下 Python 模块路径均相对此目录。Windows 原生、Linux 原生和 Docker Compose 共用 `python -m qwen3_tts_openai` 入口，由 `__main__.py` 启动单进程 HTTP 服务。GPU 依赖锁位于 `requirements/`，Windows 使用 `requirements-gpu-windows.lock`，Linux 使用 `requirements-gpu.lock`。
 
 | 模块 | 职责 |
 | --- | --- |
@@ -22,11 +22,12 @@ Python 应用代码统一位于 `qwen3_tts_openai/`，以下 Python 模块路径
 | `contracts.py`、`director_compiler.py` | 请求协议、文稿编译、控制校验和降级报告。 |
 | `synthesis_service.py` | 音色准备、配音执行与产物编排。 |
 | `backends/` | 官方模型适配、独立模型进程与调用超时。 |
+| `model_snapshot.py` | 下载指定版本的模型快照并校验权重。 |
 | `audio_processing.py` | 音频校验、数值后处理、拼接与编码。 |
 | `voice_store.py`、`job_store.py`、`storage.py` | 音色版本、持久化队列、文件与缓存。 |
 | `asr_client.py`、`reference_store.py` | 可选 ASR 调用、短录音转换、草稿过期与重复提交保护。 |
 
-`app.py` 从应用包所在的仓库根目录定位 `static/` 与 `examples/`。模型、数据库、参考音色和生成产物仍由 `HF_HOME` 与 `DATA_DIR` 决定，目录整理不迁移运行数据。Docker 与原生 systemd 共用模块入口，参见 `deploy/qwen3-tts-openai.service.example`。
+`app.py` 从仓库根目录定位 `static/` 与 `examples/`。`HF_HOME` 和 `DATA_DIR` 决定模型、数据库、参考音色和生成产物的位置。服务通过 `.service.lock` 保证每个数据目录只由一个服务进程持有。 [Linux systemd 示例](../deploy/qwen3-tts-openai.service.example)
 
 五个页面分别使用 `/studio`、`/voices`、`/jobs`、`/integrations/mcp` 和 `/runtime`。服务端返回同一个工作台文档，前端使用 History API 恢复文稿模式、音色页签与任务详情；刷新和新标签页直接访问均由这些服务端路由承接。音色 ID badge 复制纯 ID，名称与 ID 分开存储。
 

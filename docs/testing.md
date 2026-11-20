@@ -12,7 +12,7 @@ docker run --rm --network none qwen3-tts-openai:test
 docker run --rm --network none qwen3-tts-openai:test ruff check .
 ```
 
-原生开发可安装 `requirements/requirements-dev.lock`，并提供 FFmpeg、FFprobe 和 Rubber Band CLI：
+Linux 原生测试使用 `requirements/requirements-dev.lock`，需要 FFmpeg、FFprobe 和 Rubber Band CLI。
 
 ```bash
 python3.12 -m venv .venv
@@ -20,6 +20,16 @@ python3.12 -m venv .venv
 .venv/bin/python scripts/check_toolchain.py
 .venv/bin/pytest -q
 .venv/bin/ruff check .
+```
+
+Windows PowerShell 使用 `uv` 解析开发依赖，沿用开发锁中的版本约束。先准备 FFmpeg、FFprobe 和 Rubber Band CLI。 [Windows 音频工具](../README.md#windows-原生启动)
+
+```powershell
+uv venv --python 3.12 .venv-win-test
+uv pip install --python .\.venv-win-test\Scripts\python.exe -r requirements/requirements-dev.in --constraint requirements/requirements-dev.lock
+.\.venv-win-test\Scripts\python.exe scripts/check_toolchain.py
+.\.venv-win-test\Scripts\python.exe -m pytest -q
+.\.venv-win-test\Scripts\ruff.exe check .
 ```
 
 测试覆盖文稿编译、SSML 子集、原文保留、音色条件隔离、缓存、真实音频后处理、持久化任务、HTTP 接口和模型进程超时。
@@ -111,11 +121,18 @@ UI_TEST_QUICK_CLONE=1 UI_TEST_PROGRESS=1 \
 
 ## 真实模型验证
 
-安装 GPU 依赖，完成模型预下载并选择目标设备后，可先执行只读探测：
+按平台安装 GPU 依赖，完成模型预下载并选择目标设备后，可执行只读探测。以下是 Linux 命令。
 
 ```bash
 .venv/bin/pip install --require-hashes -r requirements/requirements-gpu.lock
 .venv/bin/python scripts/probe_gpu.py --output test-results/gpu-probe.json
+```
+
+Windows PowerShell 使用 Windows 锁文件和虚拟环境中的 Python。
+
+```powershell
+.\.venv-win\Scripts\python.exe -m pip install --require-hashes -r requirements/requirements-gpu-windows.lock
+.\.venv-win\Scripts\python.exe scripts/probe_gpu.py --output test-results/gpu-probe.json
 ```
 
 服务启动后，使用两段有权使用的参考录音验证真实 API 流程：

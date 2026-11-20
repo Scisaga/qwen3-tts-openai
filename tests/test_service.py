@@ -29,7 +29,7 @@ def produce(service, director, profile, voice, **kwargs):
     job=service.submit(request)
     done=wait_done(service,job["job_id"])
     assert done["state"] == "succeeded",done["error"]
-    manifest=json.loads(service.artifact(job["job_id"],"manifest")[0].read_text())
+    manifest=json.loads(service.artifact(job["job_id"],"manifest")[0].read_text(encoding="utf-8"))
     return done,manifest
 
 
@@ -100,7 +100,7 @@ def test_multi_page_timeline_uses_final_samples_and_mp3(settings,sample,director
     try:
         voice=register(service,sample)
         job,_=produce(service,director,profile,voice)
-        timeline=json.loads(service.artifact(job["id"],"timeline")[0].read_text())
+        timeline=json.loads(service.artifact(job["id"],"timeline")[0].read_text(encoding="utf-8"))
         assert timeline["mp3"]["decoded_frames"] == timeline["frames"]
         assert len(timeline["pages"]) == 2
         assert sum(p["mp3"]["decoded_frames"] for p in timeline["pages"]) == timeline["frames"]
@@ -177,6 +177,11 @@ def test_single_holder_lock_and_preload_does_not_block_http(settings):
         with pytest.raises(RuntimeError,match="already owned"):
             another.start()
         gate.set()
+    another.start()
+    try:
+        assert another.started
+    finally:
+        another.close()
 
 
 def test_workbench_deep_links_keep_api_auth_and_unknown_routes(settings):

@@ -138,7 +138,7 @@ def test_running_cancel_releases_holder_cleans_partial_audio_and_preserves_queue
         assert len(backend.calls) == 2 and len(backend.holders) == 2
         assert backend.holders[1] is not owned
         assert not list((settings.data_dir / "cache/raw").glob("*.tmp.wav"))
-        manifest = json.loads(service.artifact(last, "manifest")[0].read_text())
+        manifest = json.loads(service.artifact(last, "manifest")[0].read_text(encoding="utf-8"))
         assert manifest["units"][0]["generation"]["controlled_reply"] == "fresh"
         assert not manifest["units"][0]["raw_cache_hit"]
         assert service.artifact(last, "full-wav")[0].is_file()

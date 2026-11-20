@@ -288,14 +288,14 @@ def test_reference_expiry_tampering_mode_and_source_guards(settings, sample):
         assert client.post(f"/v1/voices/references/{draft['draft_id']}/transcribe", headers=HEADERS).status_code == 422
         path.write_bytes(original)
         metadata = path.parent / "draft.json"
-        doc = json.loads(metadata.read_text())
+        doc = json.loads(metadata.read_text(encoding="utf-8"))
         doc["expires_at"] = 0
         write_json(metadata, doc)
         response = client.post("/v1/voices", headers=HEADERS, data={**data, "ref_text": "test"})
         assert response.status_code == 410 and not path.parent.exists()
         another = stage(client, sample).json()
         path = app.state.service.references.sample(another["draft_id"])
-        doc = json.loads((path.parent / "draft.json").read_text())
+        doc = json.loads((path.parent / "draft.json").read_text(encoding="utf-8"))
         doc["expires_at"] = 0
         write_json(path.parent / "draft.json", doc)
         app.state.service.references.prune()

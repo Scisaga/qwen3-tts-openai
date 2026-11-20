@@ -26,7 +26,8 @@ class AudioProcessor:
 
     def run(self, argv: list[str], *, include_stderr=False) -> str:
         try:
-            p = subprocess.run(argv, capture_output=True, text=True, timeout=self.settings.ffmpeg_timeout_seconds, check=False)
+            p = subprocess.run(argv, capture_output=True, encoding="utf-8", errors="replace",
+                               timeout=self.settings.ffmpeg_timeout_seconds, check=False)
         except FileNotFoundError as e:
             raise ServiceError("audio_tool_missing", "Install ffmpeg/ffprobe with rubberband and libmp3lame, plus rubberband-cli", 503) from e
         except subprocess.TimeoutExpired as e:

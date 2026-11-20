@@ -16,8 +16,8 @@
   <a href="https://github.com/Scisaga/qwen3-tts-openai/issues"><img src="https://img.shields.io/github/issues/Scisaga/qwen3-tts-openai?style=flat-square&amp;color=34826D" alt="GitHub Issues"></a>
   <a href="https://github.com/Scisaga/qwen3-tts-openai/actions/workflows/ci.yml"><img src="https://github.com/Scisaga/qwen3-tts-openai/actions/workflows/ci.yml/badge.svg" alt="Tests and build"></a>
   <br>
-  <a href="Dockerfile"><img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12"></a>
-  <a href="docker-compose.yml"><img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&amp;logo=docker&amp;logoColor=white" alt="Docker Compose"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux-2496ED?style=flat-square" alt="Windows and Linux"></a>
   <a href="#application-integration"><img src="https://img.shields.io/badge/MCP-Streamable_HTTP-19765A?style=flat-square" alt="MCP Streamable HTTP"></a>
   <a href="#install-the-qwen3-tts-openai-skill"><img src="https://img.shields.io/badge/Skill-Codex_%7C_Claude_Code-477A68?style=flat-square" alt="Skill: Codex / Claude Code"></a>
 </p>
@@ -39,37 +39,19 @@
   <a href="#open-source-and-contributing">Contributing</a>
 </p>
 
-Built for video narration, lessons, narrated presentations, and articles. Reuse saved voices, generate long scripts in segments, and export MP3, WAV, and timelines. Self-host the service and run inference offline after downloading the models. Reference recordings, scripts, and generated audio stay in storage you manage.
+Built for video narration, lessons, narrated presentations, and articles. Reuse saved voices, generate long scripts in segments, and export MP3, WAV, and timelines. Self-host on Windows or Linux and run inference offline after downloading the models. Reference recordings, scripts, and generated audio stay in storage you manage.
 
 ## One-prompt setup
 
-Copy the following prompt into **Codex or Claude Code** to install the Skill, check the environment, and deploy or connect to an existing service:
+Copy this prompt into **Codex or Claude Code**.
 
 ```text
-Install the qwen3-tts-openai Skill for the agent client I am currently using,
-then deploy or connect to the narration service on this host.
-Repository: https://github.com/Scisaga/qwen3-tts-openai
-Skill directory: skills/qwen3-tts-openai
-Application code: qwen3_tts_openai/; dependency files: requirements/.
-For native deployment, start the service with python -m qwen3_tts_openai.
-
-First read SKILL.md and references/setup.md in that directory and check for Python 3.10+.
-Run scripts/tts_skill.py install with the appropriate --client option,
-then continue from the installed copy of the Skill.
-
-Reuse an existing qwen3-tts-openai service whenever possible. For a new deployment,
-follow the Skill guide and check Linux x86_64, Docker Compose v2, NVIDIA Container Toolkit,
-and one explicitly selected NVIDIA GPU. Verify that the current build supports the target GPU;
-follow the deployment guide and the actual runtime checks.
-If the target GPU is ambiguous, ask me to choose. If the environment is incompatible,
-report the missing requirements. Preserve existing configuration, models, and data.
-Run doctor --mcp, configure MCP using the current client's supported method,
-and verify that the actual tools can be discovered.
-Report the Skill installation path, workbench URL, service readiness,
-and whether the current client session needs to be reloaded.
+Install the Skill from https://github.com/Scisaga/qwen3-tts-openai and start or connect to its narration service on this host.
+Reuse an existing service when available. For a new deployment, follow the README and Skill guide for native Windows startup or Linux deployment.
+Configure MCP, verify /ready and MCP tool discovery, and report the Skill path and workbench URL.
 ```
 
-For remote deployment, replace “this host” with “the configured SSH host tts-host.” If a service already exists, provide its root URL. To install only the Skill, change the first sentence to “Install the Skill only; do not deploy or modify a service yet.” Installing the Skill does not require a GPU; generating real narration requires a compatible service and a reference recording supplied by the user. See [Skill installation](#install-the-qwen3-tts-openai-skill) for manual commands.
+You can also specify an existing service URL, a configured SSH host, or a Skill-only install. [Install the Skill manually](#install-the-qwen3-tts-openai-skill)
 
 ## Screenshots
 
@@ -134,7 +116,7 @@ During generation, progress follows actual decoding steps. The page refreshes ev
 | Pages and navigation | Five independent page URLs support reloads, bookmarks, and browser history, with desktop and mobile layouts. |
 | Runtime status | Inspect readiness, devices, audio tools, and explanations of the active backend's control capabilities. |
 | Agent Skill | Install the Skill for Codex or Claude Code to guide local or SSH deployment, connect to a service, choose voices, and generate and download narration. |
-| Self-hosting | Local models and file storage with SQLite persistence. The workbench needs no separate frontend build, and models can be downloaded in advance for offline inference. |
+| Self-hosting | Run natively on Windows or Linux, or use Docker Compose on Linux. Persist data with local files and SQLite, and serve the workbench without a separate build. |
 
 ## From script to narration
 
@@ -270,23 +252,23 @@ The certificate must cover the hostname or IP used to access the service and be 
 
 ## Install the qwen3-tts-openai Skill
 
-The [`qwen3-tts-openai` Skill](skills/qwen3-tts-openai/SKILL.md) combines deployment guidance, service diagnostics, and daily narration workflows. The client needs only **Python 3.10+** and supports Codex or Claude Code. Inference runs on a compatible Linux GPU host.
+The `qwen3-tts-openai` Skill guides Windows and Linux deployment, connects to existing services, and runs narration jobs from Codex or Claude Code. Installing the Skill requires **Python 3.10+**. [Skill instructions](skills/qwen3-tts-openai/SKILL.md)
 
-After obtaining the source, install for the current user from the repository root:
+From the repository root on Linux or macOS, run the following command.
 
 ```bash
 python3 skills/qwen3-tts-openai/scripts/tts_skill.py install --client codex
-# Use --client claude for Claude Code, or --client both for both clients.
 ```
 
-The default installation paths are `~/.agents/skills/qwen3-tts-openai` for Codex and `~/.claude/skills/qwen3-tts-openai` for Claude Code. In Windows PowerShell, replace `python3` with `py -3`. Use the installed copy for subsequent operations. For example, diagnose an existing local service:
+In Windows PowerShell, run the following command.
 
-```bash
-python3 ~/.agents/skills/qwen3-tts-openai/scripts/tts_skill.py \
-  --url http://127.0.0.1:8000 doctor --mcp
+```powershell
+py -3 .\skills\qwen3-tts-openai\scripts\tts_skill.py install --client codex
 ```
 
-The installation command copies the Skill only. The agent performs deployment using the [installation and connection guide](skills/qwen3-tts-openai/references/setup.md), reusing existing services first. The client's REST helper does not need model dependencies. When authentication is enabled, it reads the token from `QWEN_TTS_API_TOKEN`. `doctor --mcp` checks readiness, API authentication, and MCP tools without generating audio.
+Use `--client claude` for Claude Code or `--client both` for both clients. The default install paths are `~/.agents/skills/qwen3-tts-openai` for Codex and `~/.claude/skills/qwen3-tts-openai` for Claude Code.
+
+Use `doctor --mcp` to check a running service's readiness, API authentication, and MCP tools. When authentication is enabled, the helper reads the token from `QWEN_TTS_API_TOKEN`. [Deployment and connection guide](skills/qwen3-tts-openai/references/setup.md)
 
 After installation, ask your agent:
 
@@ -296,20 +278,48 @@ The Skill provides helpers for preflight, submission, job queries, and verified 
 
 ## Quick start
 
-Requires Linux, Docker Compose v2, a working NVIDIA driver, and NVIDIA Container Toolkit. The service uses one explicitly selected GPU with FP16 inference. Before deploying, check [GPU and build compatibility](docs/architecture.md#gpu-与构建兼容性) for the current runtime device checks and adaptation requirements.
+The service uses one selected NVIDIA GPU for FP16 inference. This checkout's device check requires an RTX 2080 Ti (`sm_75`). [GPU and build compatibility](docs/architecture.md#gpu-与构建兼容性)
 
-The examples below use generic ports and device settings; adjust them to your environment.
+| Host | Startup |
+| --- | --- |
+| Windows | [Native PowerShell startup](#native-windows-startup) |
+| Linux | [Docker Compose](#linux-docker-compose) or [native startup](#native-startup) |
 
-### 1. Prepare configuration
+### Native Windows startup
 
-After obtaining the source, run these commands in the project directory:
+Install x64 Python 3.12 and a compatible Windows NVIDIA driver. PyTorch provides the CUDA runtime libraries. Add the full FFmpeg build (including FFprobe, the `rubberband` filter, and the `libmp3lame` encoder) and Rubber Band CLI to your PowerShell `PATH`. Add SoX if you use a 25 Hz tokenizer. [FFmpeg Windows builds](https://ffmpeg.org/download.html#build-windows) · [Rubber Band CLI](https://www.breakfastquay.com/rubberband/) · [SoX](https://sourceforge.net/projects/sox/files/sox/14.4.2/)
 
-```bash
-cp .env.example .env
+From the checkout root, create the configuration and look up the GPU index or UUID.
+
+```powershell
+if (-not (Test-Path -LiteralPath .env)) { Copy-Item -LiteralPath .env.example -Destination .env }
 nvidia-smi --query-gpu=index,uuid,name --format=csv
 ```
 
-Edit `.env` to select one GPU. Replace the device placeholder below; other model settings can use the example configuration:
+In `.env`, set `GPU_DEVICE` to the selected GPU index or UUID and set `HF_HUB_OFFLINE=1`. The example configuration uses `HOST=127.0.0.1` and `PORT=8000`. You can also use the full path to your Python 3.12 executable in place of `py -3.12`.
+
+```powershell
+py -3.12 -m venv .venv-win
+.\.venv-win\Scripts\python.exe -m pip install --require-hashes -r requirements/requirements-gpu-windows.lock
+.\.venv-win\Scripts\python.exe scripts/check_toolchain.py
+.\.venv-win\Scripts\python.exe scripts/download_models.py --http --online
+.\.venv-win\Scripts\python.exe -m qwen3_tts_openai
+```
+
+### Linux Docker Compose
+
+Install Docker Compose v2, a working NVIDIA driver, and NVIDIA Container Toolkit.
+
+#### 1. Prepare configuration
+
+From the checkout root, create the configuration and look up the GPU index or UUID.
+
+```bash
+test -e .env || cp .env.example .env
+nvidia-smi --query-gpu=index,uuid,name --format=csv
+```
+
+Edit `.env` and fill in the GPU index or UUID. The other settings can use the example values.
 
 ```dotenv
 GPU_DEVICE=<GPU_UUID_OR_INDEX>
@@ -318,7 +328,7 @@ PORT=8000
 HF_HUB_OFFLINE=1
 ```
 
-### 2. Build and download models
+#### 2. Build and download models
 
 ```bash
 docker compose config --quiet
@@ -329,24 +339,16 @@ docker run --rm --env-file .env -e HF_HOME=/models \
   python scripts/download_models.py --http --online
 ```
 
-The download retrieves complete, pinned model snapshots and verifies the weights. No GPU needs to be exposed to the download container. `--online` applies only to this download; the service still starts with its configured offline setting.
-
-### 3. Start the workbench
+#### 3. Start the service
 
 ```bash
 docker compose up -d --no-build
 docker compose logs -f qwen3_tts
 ```
 
-Open <http://127.0.0.1:8000/>, wait until the model status shows **Ready** (已就绪), and add a voice. API documentation is available at <http://127.0.0.1:8000/docs>.
-
-`/health` reports service liveness. `/ready` returns 200 when the model and audio tools are ready. Models are stored in `models/`; reference recordings, jobs, caches, and generated audio are stored in `data/`. Both directories are excluded from Git.
-
-To enable API authentication, set `API_TOKEN` and send `Authorization: Bearer <token>` when calling `/v1/*` or `/mcp/`. See [.env.example](.env.example) for more settings.
-
 ### Native startup
 
-On a Linux host with NVIDIA drivers, FFmpeg, FFprobe, and Rubber Band CLI installed, run the same application entry point from the checkout root. Configure `.env`, select the GPU, and check build compatibility as described above:
+On Linux, install Python 3.12, the NVIDIA driver, FFmpeg with `rubberband` and `libmp3lame`, FFprobe, and Rubber Band CLI. Install SoX if you use a 25 Hz tokenizer. Create `.env` as described above and set `GPU_DEVICE` and `HF_HUB_OFFLINE=1`. Run these commands from the checkout root.
 
 ```bash
 python3.12 -m venv .venv
@@ -356,7 +358,15 @@ python3.12 -m venv .venv
 .venv/bin/python -m qwen3_tts_openai
 ```
 
-See [deploy/qwen3-tts-openai.service.example](deploy/qwen3-tts-openai.service.example) for a systemd template. Adjust the user, checkout, and virtual-environment paths. Set `WorkingDirectory` to the checkout root and `ExecStart` to the virtual environment's Python followed by `-m qwen3_tts_openai`.
+For systemd, fill in your user, checkout, and virtual-environment paths. Set `WorkingDirectory` to the checkout root and `ExecStart` to the virtual environment's Python followed by `-m qwen3_tts_openai`. [systemd template](deploy/qwen3-tts-openai.service.example)
+
+### Check the service
+
+Open <http://127.0.0.1:8000/> and wait for the model to be ready before adding or importing voices. `/health` checks liveness. `/ready` returns HTTP 200 when the model and audio tools are ready. API documentation is available at <http://127.0.0.1:8000/docs>.
+
+The download command fetches and verifies a pinned model snapshot. `--online` applies to the download. After caching the model, the service can start with `HF_HUB_OFFLINE=1`. The `models/` directory stores models, and `data/` stores voices, jobs, caches, and generated audio.
+
+To enable API authentication, set `API_TOKEN` and send `Authorization: Bearer <token>` when calling `/v1/*` or `/mcp/`. [Configuration options](.env.example)
 
 ### Inference speed
 

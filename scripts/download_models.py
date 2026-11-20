@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from qwen3_tts_openai.config import Settings
+from qwen3_tts_openai.model_snapshot import resolve_hub_snapshot, verify_hub_weights
 
 
 if __name__ == "__main__":
@@ -24,30 +25,20 @@ if __name__ == "__main__":
         os.environ["HF_HUB_OFFLINE"] = "0"
         os.environ["TRANSFORMERS_OFFLINE"] = "0"
     os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "60")
-    from huggingface_hub import snapshot_download
     from requests.exceptions import ChunkedEncodingError, ConnectionError, Timeout
-    from qwen3_tts_openai.storage import file_hash, write_json
+    offline = settings.hf_hub_offline and not args.online
     items = [(settings.model_id, settings.model_revision)]
     if args.combined:
         items.append((settings.expression_model_id, settings.expression_model_revision))
     for model_id, revision in items:
         for attempt in range(args.retries + 1):
             try:
-                path = Path(snapshot_download(model_id, revision=revision, cache_dir=settings.hf_home / "hub", ignore_patterns=["*.bin", "*.pt", "*.pth"]))
+                path = resolve_hub_snapshot(model_id, revision, settings.hf_home, offline=offline)
                 break
             except (ChunkedEncodingError, ConnectionError, Timeout) as error:
                 if attempt == args.retries:
                     raise
                 print(f"Transfer interrupted ({type(error).__name__}); resuming cached partials, retry {attempt + 1}/{args.retries}", flush=True)
                 time.sleep(min(5, attempt + 1))
-        weights = {}
-        for file in sorted(path.rglob("*.safetensors")):
-            expected = file.resolve().name
-            actual = file_hash(file)
-            if len(expected) != 64 or actual != expected:
-                raise RuntimeError(f"Checkpoint integrity failed: {file.relative_to(path)}; do not load this snapshot")
-            weights[str(file.relative_to(path))] = {"sha256": actual, "bytes": file.stat().st_size}
-        if not weights:
-            raise RuntimeError("Snapshot contains no safetensors weights")
-        write_json(settings.hf_home / "verified-snapshots" / f"{model_id.replace('/', '--')}-{revision}.json", {"model_id": model_id, "revision": path.name, "weights": weights})
+        weights = verify_hub_weights(path, model_id, settings.hf_home, offline=offline, record=True)
         print(f"Verified {len(weights)} weight files: {path}", flush=True)

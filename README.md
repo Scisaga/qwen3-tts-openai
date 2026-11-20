@@ -16,8 +16,8 @@
   <a href="https://github.com/Scisaga/qwen3-tts-openai/issues"><img src="https://img.shields.io/github/issues/Scisaga/qwen3-tts-openai?style=flat-square&amp;color=34826D" alt="GitHub Issues"></a>
   <a href="https://github.com/Scisaga/qwen3-tts-openai/actions/workflows/ci.yml"><img src="https://github.com/Scisaga/qwen3-tts-openai/actions/workflows/ci.yml/badge.svg" alt="Tests and build"></a>
   <br>
-  <a href="Dockerfile"><img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12"></a>
-  <a href="docker-compose.yml"><img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&amp;logo=docker&amp;logoColor=white" alt="Docker Compose"></a>
+  <a href="#快速开始"><img src="https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.12"></a>
+  <a href="#快速开始"><img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux-2496ED?style=flat-square" alt="Windows and Linux"></a>
   <a href="#接入现有应用"><img src="https://img.shields.io/badge/MCP-Streamable_HTTP-19765A?style=flat-square" alt="MCP Streamable HTTP"></a>
   <a href="#安装-qwen3-tts-openai-skill"><img src="https://img.shields.io/badge/Skill-Codex_%7C_Claude_Code-477A68?style=flat-square" alt="Skill: Codex / Claude Code"></a>
 </p>
@@ -39,30 +39,19 @@
   <a href="#开源与贡献">开源与贡献</a>
 </p>
 
-适合视频旁白、课程讲解、演示文稿配音和文章朗读。音色可反复使用，长稿可分段生成，成品可导出 MP3、WAV 和时间轴。服务支持自托管，模型下载完成后可离线推理，参考录音、文稿和生成音频由自己管理。
+适合视频旁白、课程讲解、演示文稿配音和文章朗读。可复用音色、分段生成长稿，并导出 MP3、WAV 和时间轴。服务可在 Windows 和 Linux 上自托管，下载模型后可离线推理，参考录音、文稿和生成音频由自己管理。
 
 ## 一键安装提示词
 
-将下面的提示词复制到 **Codex 或 Claude Code**，让智能体安装 Skill，并完成环境检查、部署或已有服务接入：
+将下面的提示词复制到 **Codex 或 Claude Code**。
 
 ```text
-请为当前使用的智能体安装 qwen3-tts-openai Skill，并在当前主机部署或接入配音服务。
-项目仓库：https://github.com/Scisaga/qwen3-tts-openai
-Skill 目录：skills/qwen3-tts-openai
-
-先阅读该目录的 SKILL.md 和 references/setup.md，检查 Python 3.10+，
-使用 scripts/tts_skill.py install 为当前客户端安装 Skill，然后从已安装副本继续操作。
-
-优先复用已有的 qwen3-tts-openai 服务；首次部署按 Skill 指引检查 Linux x86_64、
-Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU，
-并核对当前构建与目标 GPU 的兼容性，具体以 Skill 部署指南和实际运行检查为准。
-多卡目标不明确时先让我选择，环境不兼容时报告缺失条件；保留现有配置、模型和数据。
-完成后运行 doctor --mcp，按当前客户端支持的方式接入 MCP，验证实际工具发现。
-服务源码位于 qwen3_tts_openai/，依赖文件位于 requirements/；原生启动使用 python -m qwen3_tts_openai。
-告诉我 Skill 安装位置、工作台入口、服务就绪情况，以及当前会话是否需要重新加载。
+请安装 https://github.com/Scisaga/qwen3-tts-openai 的 Skill，并在本机启动或接入配音服务。
+优先复用已有服务。首次部署按 README 和 Skill 指南选择 Windows 原生或 Linux 启动方式。
+接入 MCP，验证 /ready 和工具发现，告诉我 Skill 安装位置及工作台地址。
 ```
 
-远程部署时，将第一句的「当前主机」替换为「已配置的 SSH 主机 tts-host」；已有服务可直接注明根地址。只想安装 Skill 时，将第一句改为「只安装 Skill，暂不部署或修改服务」。安装本身不需要 GPU，真实生成需要兼容的服务和用户提供的参考录音。手动命令见 [Skill 安装与接入](#安装-qwen3-tts-openai-skill)。
+也可在提示词中指定已有服务的根地址、已配置的 SSH 主机，或将任务限定为安装 Skill。 [手动安装 Skill](#安装-qwen3-tts-openai-skill)
 
 ## 界面预览
 
@@ -127,7 +116,7 @@ Docker Compose v2、NVIDIA Container Toolkit 和明确选中的单张 NVIDIA GPU
 | 页面与导航 | 五个页面使用独立 URL，支持刷新、收藏和前进后退；桌面与手机自适应布局。 |
 | 运行状态 | 查看就绪状态、设备及音频工具，说明当前后端支持的控制方式。 |
 | Agent Skill | 为 Codex / Claude Code 安装 Skill，引导本机或 SSH 部署、接入服务、选择音色并生成和下载配音。 |
-| 自托管 | 本地模型与文件存储，SQLite 持久化；网页无需单独构建，模型可预下载后离线运行。 |
+| 自托管 | Windows 和 Linux 均可原生运行，Linux 也支持 Docker Compose。使用本地文件和 SQLite 持久化，网页无需单独构建。 |
 
 ## 从文稿到配音
 
@@ -263,23 +252,23 @@ TLS_KEYFILE=/path/to/server.key
 
 ## 安装 qwen3-tts-openai Skill
 
-[`qwen3-tts-openai` Skill](skills/qwen3-tts-openai/SKILL.md) 将安装部署、服务诊断和日常配音流程封装在一起。客户端只需 **Python 3.10+**，支持 Codex 与 Claude Code；推理服务运行在兼容的 Linux GPU 主机。
+`qwen3-tts-openai` Skill 支持 Codex 和 Claude Code，可引导 Windows 和 Linux 部署、连接现有服务并执行配音任务。安装 Skill 需要 **Python 3.10+**。 [Skill 说明](skills/qwen3-tts-openai/SKILL.md)
 
-取得源码后，在仓库根目录安装到当前用户：
+取得源码后，在仓库根目录安装。Linux 或 macOS 使用以下命令。
 
 ```bash
 python3 skills/qwen3-tts-openai/scripts/tts_skill.py install --client codex
-# Claude Code 使用 --client claude；同时安装使用 --client both
 ```
 
-默认安装到 `~/.agents/skills/qwen3-tts-openai`（Codex）或 `~/.claude/skills/qwen3-tts-openai`（Claude Code）。Windows PowerShell 将 `python3` 换为 `py -3`。后续使用已安装的副本，例如诊断已启动的本机服务：
+Windows PowerShell 使用以下命令。
 
-```bash
-python3 ~/.agents/skills/qwen3-tts-openai/scripts/tts_skill.py \
-  --url http://127.0.0.1:8000 doctor --mcp
+```powershell
+py -3 .\skills\qwen3-tts-openai\scripts\tts_skill.py install --client codex
 ```
 
-安装命令只复制 Skill；部署由智能体按 [安装、部署与接入](skills/qwen3-tts-openai/references/setup.md) 执行。已有服务优先复用，客户端的 REST helper 无需安装模型依赖；启用鉴权时从 `QWEN_TTS_API_TOKEN` 环境变量读取 Token。`doctor --mcp` 检查就绪状态、API 鉴权与 MCP 工具，不生成音频。
+Claude Code 使用 `--client claude`，同时安装到两个客户端使用 `--client both`。默认安装目录为 `~/.agents/skills/qwen3-tts-openai`（Codex）和 `~/.claude/skills/qwen3-tts-openai`（Claude Code）。
+
+使用 `doctor --mcp` 检查已启动服务的就绪状态、API 鉴权和 MCP 工具。服务启用鉴权时，helper 从 `QWEN_TTS_API_TOKEN` 读取 Token。 [部署与接入指南](skills/qwen3-tts-openai/references/setup.md)
 
 安装后可直接对智能体说：
 
@@ -289,20 +278,48 @@ Skill 提供预检、提交、任务查询与校验下载工具。完整命令�
 
 ## 快速开始
 
-需要 Linux、Docker Compose v2、可工作的 NVIDIA 驱动和 NVIDIA Container Toolkit。服务按单张 GPU、FP16 推理部署；开始前请核对 [GPU 与构建兼容性](docs/architecture.md#gpu-与构建兼容性)，其中记录了当前代码的设备检查和适配范围。
+服务使用选定的一张 NVIDIA GPU 进行 FP16 推理。当前版本的设备检查要求 RTX 2080 Ti（`sm_75`）。 [GPU 与构建兼容性](docs/architecture.md#gpu-与构建兼容性)
 
-以下是通用部署示例，可根据自己的环境调整端口与设备。
+| 主机 | 启动方式 |
+| --- | --- |
+| Windows | [PowerShell 原生启动](#windows-原生启动) |
+| Linux | [Docker Compose](#linux-docker-compose) 或 [原生启动](#原生启动) |
 
-### 1. 准备配置
+### Windows 原生启动
 
-获取代码后，在项目目录执行：
+准备 x64 Python 3.12 和兼容的 Windows NVIDIA 驱动。PyTorch 随依赖安装 CUDA 运行库。将 FFmpeg 完整构建（含 FFprobe、`rubberband` 滤镜和 `libmp3lame` 编码器）及 Rubber Band CLI 加入当前 PowerShell 的 `PATH`。使用 25 Hz tokenizer 时也将 SoX 加入 `PATH`。 [FFmpeg Windows 构建](https://ffmpeg.org/download.html#build-windows) · [Rubber Band CLI](https://www.breakfastquay.com/rubberband/) · [SoX](https://sourceforge.net/projects/sox/files/sox/14.4.2/)
 
-```bash
-cp .env.example .env
+在仓库根目录创建配置并查看 GPU 索引或 UUID。
+
+```powershell
+if (-not (Test-Path -LiteralPath .env)) { Copy-Item -LiteralPath .env.example -Destination .env }
 nvidia-smi --query-gpu=index,uuid,name --format=csv
 ```
 
-编辑 `.env`，选择一张目标 GPU。下面的设备字段需要替换，其他模型参数可沿用示例配置：
+在 `.env` 将 `GPU_DEVICE` 设为目标 GPU 的索引或 UUID，并设置 `HF_HUB_OFFLINE=1`。示例配置使用 `HOST=127.0.0.1` 和 `PORT=8000`。`py -3.12` 也可换成已安装的 Python 3.12 的完整路径。
+
+```powershell
+py -3.12 -m venv .venv-win
+.\.venv-win\Scripts\python.exe -m pip install --require-hashes -r requirements/requirements-gpu-windows.lock
+.\.venv-win\Scripts\python.exe scripts/check_toolchain.py
+.\.venv-win\Scripts\python.exe scripts/download_models.py --http --online
+.\.venv-win\Scripts\python.exe -m qwen3_tts_openai
+```
+
+### Linux Docker Compose
+
+准备 Docker Compose v2、可用的 NVIDIA 驱动和 NVIDIA Container Toolkit。
+
+#### 1. 准备配置
+
+在仓库根目录创建配置并查看 GPU 索引或 UUID。
+
+```bash
+test -e .env || cp .env.example .env
+nvidia-smi --query-gpu=index,uuid,name --format=csv
+```
+
+编辑 `.env`，填写 GPU 索引或 UUID。其余参数可沿用示例配置。
 
 ```dotenv
 GPU_DEVICE=<GPU_UUID_OR_INDEX>
@@ -311,7 +328,7 @@ PORT=8000
 HF_HUB_OFFLINE=1
 ```
 
-### 2. 构建并下载模型
+#### 2. 构建并下载模型
 
 ```bash
 docker compose config --quiet
@@ -322,24 +339,16 @@ docker run --rm --env-file .env -e HF_HOME=/models \
   python scripts/download_models.py --http --online
 ```
 
-预下载会获取固定版本的完整模型快照并校验权重，不需要暴露 GPU。`--online` 仅用于这次下载；服务仍按 `.env` 中的离线设置启动。
-
-### 3. 启动工作台
+#### 3. 启动服务
 
 ```bash
 docker compose up -d --no-build
 docker compose logs -f qwen3_tts
 ```
 
-打开 <http://127.0.0.1:8000/>，等待界面显示模型「已就绪」，然后添加音色。API 文档位于 <http://127.0.0.1:8000/docs>。
-
-`/health` 表示服务存活，`/ready` 在模型与音频工具就绪后返回 200。模型保存在 `models/`，参考录音、任务、缓存与音频保存在 `data/`；两者均不进入 Git。
-
-需要接口鉴权时，可设置 `API_TOKEN`，调用 `/v1/*` 和 `/mcp/` 时携带 `Authorization: Bearer <token>`。更多可调选项见 [.env.example](.env.example)。
-
 ### 原生启动
 
-在已安装 NVIDIA 驱动、FFmpeg、FFprobe 和 Rubber Band CLI 的 Linux 主机上，也可以从仓库根目录运行同一个应用入口。先按前文配置 `.env`，选择目标 GPU 并确认构建兼容性：
+在 Linux 安装 Python 3.12、NVIDIA 驱动、含 `rubberband` 和 `libmp3lame` 的 FFmpeg、FFprobe 及 Rubber Band CLI。使用 25 Hz tokenizer 时还需 SoX。按前文创建 `.env`，设置 `GPU_DEVICE` 和 `HF_HUB_OFFLINE=1`。在仓库根目录执行以下命令。
 
 ```bash
 python3.12 -m venv .venv
@@ -349,7 +358,15 @@ python3.12 -m venv .venv
 .venv/bin/python -m qwen3_tts_openai
 ```
 
-systemd 示例见 [deploy/qwen3-tts-openai.service.example](deploy/qwen3-tts-openai.service.example)。将用户、仓库和虚拟环境路径改为自己的值，`WorkingDirectory` 指向仓库根目录，`ExecStart` 使用虚拟环境中的 Python 加 `-m qwen3_tts_openai`。
+使用 systemd 时，按实际环境填写用户、仓库和虚拟环境路径。`WorkingDirectory` 指向仓库根目录，`ExecStart` 使用虚拟环境中的 Python 加 `-m qwen3_tts_openai`。 [systemd 示例](deploy/qwen3-tts-openai.service.example)
+
+### 检查服务
+
+打开 <http://127.0.0.1:8000/>，待模型就绪后添加或导入音色。`/health` 检查服务存活，`/ready` 在模型和音频工具就绪时返回 HTTP 200。API 文档位于 <http://127.0.0.1:8000/docs>。
+
+预下载命令获取并校验固定版本的模型快照。`--online` 仅用于这次下载，模型缓存完成后可按 `HF_HUB_OFFLINE=1` 启动。`models/` 保存模型，`data/` 保存音色、任务、缓存和生成音频。
+
+需要接口鉴权时，设置 `API_TOKEN`，调用 `/v1/*` 和 `/mcp/` 时携带 `Authorization: Bearer <token>`。 [配置选项](.env.example)
 
 ### 推理速度
 

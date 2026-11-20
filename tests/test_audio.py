@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 import pytest
 import soundfile as sf
@@ -46,7 +48,7 @@ def test_real_silence_and_timeline_after_processing(settings, sample, tmp_path):
 
 
 def test_ffmpeg_failure_real_exit_and_cleanup(settings, sample, tmp_path):
-    audio=AudioProcessor(settings.model_copy(update={"ffmpeg_bin":"/bin/false"}))
+    audio=AudioProcessor(settings.model_copy(update={"ffmpeg_bin":sys.executable}))
     with pytest.raises(ServiceError) as caught:
         audio.process(sample,tmp_path/"failed.wav",1,0,0)
     assert caught.value.code == "ffmpeg_failed"

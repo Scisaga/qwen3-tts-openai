@@ -1,6 +1,6 @@
 # 安装、部署与接入
 
-Skill 客户端只需要 Python 3.10+，不需要安装 PyTorch、Qwen SDK 或本项目的 Python 依赖。推理服务部署在 Linux x86_64 GPU 主机；macOS、Windows 客户端通过已有 HTTP(S) 入口或 SSH 转发连接它。
+Skill 客户端使用 Python 3.10+ 和标准库。服务可在 Windows x64 原生部署，也可在 Linux x86_64 原生部署或使用 Docker Compose。客户端可通过 HTTP(S) 或 SSH 转发连接已有服务。
 
 ## 安装 Skill
 
@@ -32,64 +32,64 @@ python3 ~/.agents/skills/qwen3-tts-openai/scripts/tts_skill.py \
   --url http://127.0.0.1:8000 doctor --mcp
 ```
 
+```powershell
+py -3 "$HOME\.agents\skills\qwen3-tts-openai\scripts\tts_skill.py" --url http://127.0.0.1:8000 doctor --mcp
+```
+
 `doctor` 检查项目身份、`/ready`、真实音色列表访问；`--mcp` 额外完成 MCP 初始化与工具发现，不提交推理任务。helper 直接连接指定服务，不继承 shell 的 HTTP 代理。省略 `--mcp` 可诊断未启用 MCP 的 REST 服务。返回码非零时先处理鉴权、模型加载或音频工具故障。已有服务能够接入时，不改 `.env`、模型、镜像或启动方式。
 
 ## 首次部署
 
-应用源码位于 `qwen3_tts_openai/`，依赖清单与锁文件位于 `requirements/`。Docker 镜像使用 `python -m qwen3_tts_openai` 启动服务；原生部署也在仓库根目录使用同一入口，并从 `requirements/requirements-gpu.lock` 安装依赖。升级目录结构时同步更新已有服务的启动命令和工作目录，保留 `.env`、`models/` 与 `data/`。网页的音色、任务和 MCP 页面以服务返回的状态与工具为准。
+用户要求部署且目标主机上没有可复用的服务时，优先使用已有 checkout。需要新 checkout 时，可在用户选定的目录执行 `git clone https://github.com/Scisaga/qwen3-tts-openai.git`。阅读该 checkout 的 README 和 `.env.example`，记录 `git rev-parse HEAD`。固定版本的部署使用用户选定的 tag 或 commit。
 
-仅在用户要求安装部署且目标上确实没有对应服务时执行。以下是部署流程，由智能体根据检查结果执行；安装脚本的 `install` 命令只安装 Skill。
+在目标主机查看 GPU，核对可用显存和构建支持。只有一张兼容卡时可选择它。多卡目标不明确时先请用户选择。
 
-1. 在目标主机检查 `uname -sm`、`docker version`、`docker compose version`、Docker 访问权限和 NVIDIA Container Toolkit。缺失依赖按目标发行版的官方说明安装；保留现有驱动及其他 GPU 服务。
-2. 使用以下命令查看设备和占用；选择用户明确指定的一张 **NVIDIA GPU**，检查计算架构、可用显存与当前构建是否兼容。仅有一张兼容卡且用户已授权使用时可选择它。多卡目标不明确时先获取选择；不得选择 `all`、`auto` 或多张卡。
+```text
+nvidia-smi --query-gpu=index,uuid,name,memory.total,memory.used --format=csv
+```
 
-   ```bash
-   nvidia-smi --query-gpu=index,uuid,name,memory.total,memory.used --format=csv
-   ```
+当前 `verify_device()` 检查 RTX 2080 Ti（`sm_75`）和 PyTorch 构建的架构支持。启动前以实际 checkout 的设备检查为准。检查失败时报告具体原因。
 
-   当前仓库默认单卡 FP16 推理，`qwen3_tts_openai/backends/qwen.py` 的 `verify_device()` 仍检查 RTX 2080 Ti 与 `sm_75`；镜像和探测脚本也检查 PyTorch 构建包含 `sm_75`。其他型号需要完成运行时适配、构建匹配和实机验证，当前代码不能直接启动它们。部署更新版本时以该 checkout 的实际检查和验证记录为准，不将当前验证型号写成长期产品边界。设备检查失败时报告具体原因，不跳过检查或切换产品、后端。
+在已有 `.env` 中按需修改相关字段。新部署从 `.env.example` 创建配置，填写选定 GPU 的索引或 UUID。以下是本机部署的设置。
 
-3. 在用户指定的目录取得仓库。未指定时可选 `$HOME/services/qwen3-tts-openai`；先检查目录是否存在。已有 checkout 不执行自动 pull、reset 或清理。全新安装可执行：
+```dotenv
+GPU_DEVICE=<GPU_UUID_OR_INDEX>
+HOST=127.0.0.1
+BIND_ADDRESS=127.0.0.1
+PORT=8000
+BACKEND=qwen-base
+DTYPE=float16
+HF_HUB_OFFLINE=1
+ENABLE_MCP=1
+```
 
-   ```bash
-   git clone https://github.com/Scisaga/qwen3-tts-openai.git "$HOME/services/qwen3-tts-openai"
-   cd "$HOME/services/qwen3-tts-openai"
-   git rev-parse HEAD
-   ```
+保留仓库锁定的模型和 revision。检查端口冲突，并在服务和客户端配置中使用同一地址。需要鉴权时，将随机 Token 写入 `.env` 的 `API_TOKEN`，由客户端从 `QWEN_TTS_API_TOKEN` 读取。模型缓存保存在 `models/`，音色、任务和产物保存在 `data/`。
 
-   阅读该 checkout 的 README、`.env.example`、Compose 和 Dockerfile，以实际代码为准，记录部署提交。固定版本需求使用用户选定的 tag 或 commit。
+### Windows 原生部署
 
-4. **仅在 `.env` 不存在时**复制 `.env.example` 并设置仅当前用户可读写。已有文件按现有部署诊断，不整体覆盖。设置：
+在 PowerShell 按目标 checkout 的 README「Windows 原生启动」执行。检查 x64 Python 3.12、NVIDIA Windows 驱动和音频工具，使用 `requirements/requirements-gpu-windows.lock` 安装服务依赖。运行音频工具检查，预下载并校验模型，再从仓库根目录执行 `python -m qwen3_tts_openai`。使用虚拟环境中的 Python 并查看启动终端的日志。
 
-   ```dotenv
-   GPU_DEVICE=<明确选中的单卡 UUID 或索引>
-   BIND_ADDRESS=127.0.0.1
-   PORT=8000
-   BACKEND=qwen-base
-   DTYPE=float16
-   HF_HUB_OFFLINE=1
-   ENABLE_MCP=1
-   ```
+### Linux 部署
 
-   保留仓库锁定的模型和 revision。实际端口可调整，先检查冲突；服务入口与客户端配置同步使用该端口。需要鉴权时将生成的随机 Token 直接写入 `.env` 的 `API_TOKEN`，不打印到对话。ASR、HTTPS、CUDA Graph 和组合表达后端按用户需要单独配置。
+使用原生部署时，按目标 checkout 的 README「原生启动」准备音频工具，使用 `requirements/requirements-gpu.lock` 安装依赖，并从仓库根目录执行同一模块入口。
 
-5. 在部署目录构建镜像、预下载并校验完整模型快照，然后启动：
+使用 Docker Compose 时，检查 Docker Compose v2、Docker 访问权限和 NVIDIA Container Toolkit。在部署目录构建镜像、预下载模型并启动服务。
 
-   ```bash
-   docker compose config --quiet
-   docker compose build
-   docker run --rm --env-file .env -e HF_HOME=/models \
-     -v "$PWD/models:/models" qwen3-tts-openai:local \
-     python scripts/download_models.py --http --online
-   docker compose up -d --no-build
-   docker compose ps
-   ```
+```bash
+docker compose config --quiet
+docker compose build
+docker run --rm --env-file .env -e HF_HOME=/models \
+  -v "$PWD/models:/models" qwen3-tts-openai:local \
+  python scripts/download_models.py --http --online
+docker compose up -d --no-build
+docker compose ps
+```
 
-   下载不需要 GPU，`--online` 只作用于本次下载，服务仍使用离线配置。模型在 `models/`，参考录音、任务和产物在 `data/`。失败后保留目录和下载缓存，根据失败步骤续跑；不执行 `down -v`、删除数据或反复重建。
+### 检查就绪并接入
 
-6. 有界等待 `/ready`，模型首次加载可参考 `.env` 的 `MODEL_LOAD_TIMEOUT_SECONDS`。使用已安装 helper 的 `doctor --mcp` 检查服务身份、模型、音频工具、鉴权与 MCP。未就绪时检查 `docker compose logs --tail=100 qwen3_tts` 并脱敏反馈；`/health` 返回 200 仅代表存活。
+参考 `.env` 的 `MODEL_LOAD_TIMEOUT_SECONDS` 等待 `/ready`。使用已安装 helper 的 `doctor --mcp` 检查模型、音频工具、鉴权和 MCP。原生部署查看启动终端日志，Compose 部署查看 `docker compose logs --tail=100 qwen3_tts`。
 
-7. 返回实际工作台入口、API 文档 `/docs`、MCP 地址 `/mcp/`、安装位置和部署提交。真实配音验收需要用户提供参考录音或选择已有音色；不能用测试音调代替模型听感验证。
+返回实际工作台入口、API 文档 `/docs`、MCP 地址 `/mcp/`、Skill 安装位置和部署提交。实际配音验收需要用户提供参考录音或选择已有音色。
 
 ## SSH 目标
 

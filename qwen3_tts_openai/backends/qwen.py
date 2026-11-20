@@ -20,6 +20,7 @@ import soundfile as sf
 
 from qwen3_tts_openai.config import Settings
 from qwen3_tts_openai.errors import ServiceError
+from qwen3_tts_openai.model_snapshot import resolve_hub_snapshot, verify_hub_weights
 from qwen3_tts_openai.storage import digest, file_hash, write_json
 
 ADAPTER_VERSION = "official-qwen-0.1.1-binding-v1"
@@ -89,25 +90,19 @@ class OfficialQwen:
             if path.is_dir():
                 path = path.resolve()
                 # Local checkpoints are trusted administrator configuration, never HTTP uploads.
-                hashes = {str(p.relative_to(path)): file_hash(p) for p in sorted(path.rglob("*")) if p.is_file()}
+                hashes = {p.relative_to(path).as_posix(): file_hash(p) for p in sorted(path.rglob("*")) if p.is_file()}
                 resolved = digest(hashes)
+                weights = {name: {"sha256": sha256, "bytes": (path / name).stat().st_size}
+                           for name, sha256 in hashes.items() if name.endswith(".safetensors")}
             else:
-                from huggingface_hub import snapshot_download
                 try:
-                    path = Path(snapshot_download(model_id, revision=revision, cache_dir=self.settings.hf_home / "hub", local_files_only=self.settings.hf_hub_offline, ignore_patterns=["*.bin", "*.pt", "*.pth"]))
+                    path = resolve_hub_snapshot(model_id, revision, self.settings.hf_home, offline=self.settings.hf_hub_offline)
                 except Exception as error:
                     if self.settings.hf_hub_offline:
                         raise ServiceError("model_cache_missing", "Pinned model snapshot is not available offline. Run scripts/download_models.py --http --online before starting the service", 503, {"model_id": model_id, "revision": revision}) from error
                     raise
                 resolved = path.name
-            weights = {}
-            for file in sorted(path.rglob("*.safetensors")):
-                actual = file_hash(file)
-                if not Path(model_id).is_dir():
-                    expected = file.resolve().name
-                    if not re.fullmatch(r"[0-9a-f]{64}", expected) or actual != expected:
-                        raise ServiceError("model_cache_corrupt", "Checkpoint SHA256 does not match its pinned cache blob; restore it before loading", 503, {"file": str(file.relative_to(path))})
-                weights[str(file.relative_to(path))] = {"sha256": actual, "bytes": file.stat().st_size}
+                weights = verify_hub_weights(path, model_id, self.settings.hf_home, offline=self.settings.hf_hub_offline)
             if not weights:
                 raise ServiceError("model_cache_missing", "Snapshot contains no safetensors weights; pre-download the complete pinned model", 503)
             graph_identity = {}
@@ -166,7 +161,7 @@ class OfficialQwen:
         path, meta = self.prompt_root / f"{key}.npz", self.prompt_root / f"{key}.json"
         if path.is_file() and meta.is_file():
             try:
-                doc = json.loads(meta.read_text())
+                doc = json.loads(meta.read_text(encoding="utf-8"))
                 if doc["sha256"] == file_hash(path) and doc["key"] == key:
                     with np.load(path, allow_pickle=False) as data:
                         item = VoiceClonePromptItem(ref_code=torch.from_numpy(data["ref_code"].copy()) if doc["has_ref_code"] else None, ref_spk_embedding=torch.from_numpy(data["ref_spk_embedding"].copy()), x_vector_only_mode=doc["x_vector_only_mode"], icl_mode=doc["icl_mode"], ref_text=doc["ref_text"])

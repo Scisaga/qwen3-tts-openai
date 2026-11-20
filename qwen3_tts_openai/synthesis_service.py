@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import errno
-import fcntl
 import json
 import logging
 import os
@@ -11,6 +10,11 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 import soundfile as sf
 
@@ -54,19 +58,38 @@ class SynthesisService:
         self.started = False
 
     def start(self):
-        self.lock_file = (self.settings.data_dir / ".service.lock").open("a+")
+        lock_file = (self.settings.data_dir / ".service.lock").open("a+b")
         try:
-            fcntl.flock(self.lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as e:
-            self.lock_file.close()
-            raise RuntimeError("DATA_DIR is already owned by another service; use exactly one API worker") from e
-        self.jobs.recover()
-        for job in self.jobs.list(1000):
-            if job["kind"] == "voice_prepare" and job["state"] in {"failed", "cancelled"}:
-                self.voices.preparation_finished(job["request"]["voice"], job["error"] or {"type": "cancelled", "message": "Preparation cancelled; retry explicitly"})
-        self.started = True
-        self.worker = threading.Thread(target=self._worker_loop, name="tts-durable-queue", daemon=True)
-        self.worker.start()
+            if os.name == "nt":
+                # Always contend for the same byte, including in an empty lock file.
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            lock_file.close()
+            if isinstance(error, BlockingIOError) or (os.name == "nt" and error.errno == errno.EACCES):
+                raise RuntimeError("DATA_DIR is already owned by another service; use exactly one API worker") from error
+            raise
+        self.lock_file = lock_file
+        try:
+            self.jobs.recover()
+            for job in self.jobs.list(1000):
+                if job["kind"] == "voice_prepare" and job["state"] in {"failed", "cancelled"}:
+                    self.voices.preparation_finished(job["request"]["voice"], job["error"] or {"type": "cancelled", "message": "Preparation cancelled; retry explicitly"})
+            self.worker = threading.Thread(target=self._worker_loop, name="tts-durable-queue", daemon=True)
+            self.worker.start()
+            self.started = True
+        except BaseException:
+            self._release_data_lock()
+            raise
+
+    def _release_data_lock(self):
+        with self.lock_file as lock_file:
+            self.lock_file = None
+            if os.name == "nt":
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
 
     def close(self):
         self.stop_event.set()
@@ -75,7 +98,7 @@ class SynthesisService:
         if self.worker:
             self.worker.join(timeout=5)
         if self.lock_file and (not self.worker or not self.worker.is_alive()):
-            self.lock_file.close()
+            self._release_data_lock()
         self.started = False
 
     def health(self):
@@ -363,7 +386,7 @@ class SynthesisService:
         meta = path.with_suffix(path.suffix + ".json")
         if path.is_file() and meta.is_file():
             try:
-                doc = json.loads(meta.read_text())
+                doc = json.loads(meta.read_text(encoding="utf-8"))
                 if doc["key"] == key and doc["sha256"] == file_hash(path):
                     sf.info(path)
                     return path, meta, doc
@@ -464,7 +487,7 @@ class SynthesisService:
         meta = assembly_dir / "checksums.json"
         if meta.is_file():
             try:
-                checksums = json.loads(meta.read_text())
+                checksums = json.loads(meta.read_text(encoding="utf-8"))
                 if all((assembly_dir / name).is_file() and file_hash(assembly_dir / name) == sha for name, sha in checksums.items()):
                     for name in checksums:
                         shutil.copyfile(assembly_dir / name, output / name)

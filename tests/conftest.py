@@ -63,12 +63,12 @@ def settings(tmp_path):
 
 @pytest.fixture
 def director():
-    return json.loads((ROOT / "examples/narration_director.json").read_text())
+    return json.loads((ROOT / "examples/narration_director.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture
 def profile():
-    return json.loads((ROOT / "examples/voice_profile.json").read_text())
+    return json.loads((ROOT / "examples/voice_profile.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture

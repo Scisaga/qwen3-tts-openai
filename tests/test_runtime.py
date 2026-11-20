@@ -179,7 +179,7 @@ def test_configuration_rejects_device_and_codec_fallbacks(values):
 
 
 def test_gpu_identity_retains_host_uuid_after_container_remapping(tmp_path):
-    driver = tmp_path / "gpus" / "0000:01:00.0"
+    driver = tmp_path / "gpus" / "device-1"
     driver.mkdir(parents=True)
     uuid = "GPU-test-fixture"
     (driver / "information").write_text(f"Model: NVIDIA GeForce RTX 2080 Ti\nGPU UUID: {uuid}\nDevice Minor: 1\n")
@@ -202,7 +202,12 @@ def test_model_snapshot_rejects_corrupt_cached_weights_before_loading(settings, 
     content = b"controlled integrity fixture, not model weights"
     blob = tmp_path / hashlib.sha256(content).hexdigest()
     blob.write_bytes(content)
-    (snapshot / "model.safetensors").symlink_to(blob)
+    try:
+        (snapshot / "model.safetensors").symlink_to(blob)
+    except OSError as error:
+        if getattr(error, "winerror", None) != 1314:
+            raise
+        pytest.skip("Creating symbolic links requires additional privileges on this Windows host")
     monkeypatch.setitem(sys.modules, "huggingface_hub", SimpleNamespace(snapshot_download=lambda *a, **kw: snapshot))
     adapter = OfficialQwen(settings)
     _, identity = adapter.snapshot("base")
@@ -210,6 +215,42 @@ def test_model_snapshot_rejects_corrupt_cached_weights_before_loading(settings, 
     blob.write_bytes(b"corrupt")
     with pytest.raises(ServiceError) as error:
         OfficialQwen(settings).snapshot("base")
+    assert error.value.code == "model_cache_corrupt"
+
+
+def test_regular_hub_snapshot_is_verified_and_reused_offline(settings, tmp_path, monkeypatch):
+    snapshot = tmp_path / settings.model_revision
+    name = "speech_tokenizer/model.safetensors"
+    weight = snapshot / name
+    weight.parent.mkdir(parents=True)
+    content = b"controlled Windows cache fixture"
+    weight.write_bytes(content)
+    sha256 = hashlib.sha256(content).hexdigest()
+
+    def model_info(model_id, *, revision, files_metadata):
+        assert model_id == settings.model_id and revision == snapshot.name and files_metadata
+        return SimpleNamespace(sha=revision, siblings=[SimpleNamespace(rfilename=name, lfs=SimpleNamespace(sha256=sha256))])
+
+    def download(model_id, **kwargs):
+        assert model_id == settings.model_id and kwargs["revision"] == settings.model_revision
+        assert kwargs["max_workers"] == (1 if sys.platform == "win32" else 8)
+        return snapshot
+
+    hub = SimpleNamespace(snapshot_download=download)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", hub)
+    offline = settings.model_copy(update={"hf_hub_offline": True})
+    with pytest.raises(ServiceError) as error:
+        OfficialQwen(offline).snapshot("base")
+    assert error.value.code == "model_cache_unverified"
+
+    hub.HfApi = lambda: SimpleNamespace(model_info=model_info)
+    assert OfficialQwen(settings).snapshot("base")[1]["weights"][name]["sha256"] == sha256
+    del hub.HfApi
+    assert OfficialQwen(offline).snapshot("base")[1]["weights"][name]["sha256"] == sha256
+
+    weight.write_bytes(b"corrupt")
+    with pytest.raises(ServiceError) as error:
+        OfficialQwen(offline).snapshot("base")
     assert error.value.code == "model_cache_corrupt"
 
 

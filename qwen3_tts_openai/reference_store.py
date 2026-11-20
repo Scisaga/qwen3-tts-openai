@@ -32,7 +32,7 @@ class ReferenceStore:
     def _read(self, ident):
         directory = self._directory(ident)
         try:
-            doc = json.loads((directory / "draft.json").read_text())
+            doc = json.loads((directory / "draft.json").read_text(encoding="utf-8"))
         except FileNotFoundError as exc:
             raise ServiceError("reference_not_found", "录音草稿不存在或已过期，请重新录制或上传。", 404) from exc
         if doc["expires_at"] <= time.time() and ident not in self._busy:
@@ -159,7 +159,7 @@ class ReferenceStore:
                 if not directory.is_dir() or not REFERENCE_ID.fullmatch(directory.name) or directory.name in self._busy:
                     continue
                 try:
-                    doc = json.loads((directory / "draft.json").read_text())
+                    doc = json.loads((directory / "draft.json").read_text(encoding="utf-8"))
                     expired = doc["expires_at"] <= time.time()
                 except (OSError, ValueError, KeyError):
                     expired = directory.stat().st_mtime + self.ttl <= time.time()

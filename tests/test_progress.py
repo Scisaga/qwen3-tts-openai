@@ -18,6 +18,7 @@ from tests.conftest import ControlledBackend, wait_done
 
 
 def progress_holder(connection):
+    connection.send("ready")
     for number in range(2):
         connection.recv()
         for steps in (1, 12, 24):
@@ -26,6 +27,7 @@ def progress_holder(connection):
 
 
 def endless_progress_holder(connection):
+    connection.send("ready")
     connection.recv()
     while True:
         connection.send({"event": "progress", "progress": {"stage": "synthesizing", "decoder_steps": 1}})
@@ -38,6 +40,9 @@ def attach_holder(runtime, target):
     runtime.process = context.Process(target=target, args=(child,))
     runtime.process.start()
     child.close()
+    if not runtime.connection.poll(15) or runtime.connection.recv() != "ready":
+        runtime.stop()
+        pytest.fail("Progress test holder did not start")
 
 
 def test_rpc_delivers_events_and_waits_for_each_final_reply(settings):
@@ -151,7 +156,7 @@ def test_single_unit_reports_many_live_updates_before_audio_is_finished(settings
         assert all(s["status"] == "running" and s["progress"] < 1 for s in snapshots)
         assert snapshots[-1]["progress_detail"]["generated_audio_seconds"] == 8
         assert final["state"] == "succeeded" and final["progress"] == 1
-        manifest = json.loads(service.artifact(ident, "manifest")[0].read_text())
+        manifest = json.loads(service.artifact(ident, "manifest")[0].read_text(encoding="utf-8"))
         assert not manifest["units"][0]["raw_cache_hit"]
     finally:
         service.close()
